@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1762531791,
+	"version": 1762547428,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -58,12 +58,17 @@
 		"images/respawn_anim-sheet0.png",
 		"images/respawn_anim-sheet1.png",
 		"images/respawn_anim-sheet2.png",
+		"images/player_cutscene-sheet0.png",
+		"images/porta-sheet0.png",
+		"images/sprite9-sheet0.png",
+		"images/tiledsprite-sheet0.png",
+		"images/cama-sheet0.png",
+		"images/btn_baixo-sheet0.png",
 		"icon-16.png",
 		"icon-32.png",
 		"icon-114.png",
 		"icon-128.png",
 		"icon-256.png",
-		"loading-logo.png",
-		"bg_tela_inicial.mp4"
+		"loading-logo.png"
 	]
 }

@@ -21492,6 +21492,735 @@ cr.plugins_.TiledBg = function(runtime)
 }());
 ;
 ;
+cr.plugins_.TiledSprite = function(runtime)
+{
+  this.runtime = runtime;
+};
+(function ()
+{
+  var pluginProto = cr.plugins_.TiledSprite.prototype;
+  pluginProto.Type = function(plugin)
+  {
+    this.plugin = plugin;
+    this.runtime = plugin.runtime;
+  };
+  var typeProto = pluginProto.Type.prototype;
+  function frame_getPattern(){
+    if (!this.patternData){
+      var tmpcanvas = document.createElement("canvas");
+      tmpcanvas.width = this.width;
+      tmpcanvas.height = this.height;
+      var tmpctx = tmpcanvas.getContext("2d");
+      if (this.spritesheeted){
+        tmpctx.drawImage(this.texture_img, this.offx, this.offy, this.width, this.height, 0, 0, this.width, this.height);
+      }else{
+        tmpctx.drawImage(this.texture_img, 0, 0, this.width, this.height);
+      }
+      this.patternData = tmpcanvas;
+    }
+    return this.patternData;
+  };
+  typeProto.onCreate = function()
+  {
+    if (this.is_family)
+      return;
+    this.pattern = null;
+    var i, leni, j, lenj;
+    var anim, frame, animobj, frameobj, wt, uv;
+    this.all_frames = [];
+    this.has_loaded_textures = false;
+    for (i = 0, leni = this.animations.length; i < leni; i++)
+    {
+      anim = this.animations[i];
+      animobj = {};
+      animobj.name = anim[0];
+      animobj.speed = anim[1];
+      animobj.loop = anim[2];
+      animobj.repeatcount = anim[3];
+      animobj.repeatto = anim[4];
+      animobj.pingpong = anim[5];
+      animobj.sid = anim[6];
+      animobj.frames = [];
+      for (j = 0, lenj = anim[7].length; j < lenj; j++)
+      {
+        frame = anim[7][j];
+        frameobj = {};
+        frameobj.texture_file = frame[0];
+        frameobj.texture_filesize = frame[1];
+        frameobj.offx = frame[2];
+        frameobj.offy = frame[3];
+        frameobj.width = frame[4];
+        frameobj.height = frame[5];
+        frameobj.duration = frame[6];
+        frameobj.pixelformat = frame[11];
+        frameobj.spritesheeted = (frameobj.width !== 0);
+        frameobj.patternData = null;    // generated on demand and cached
+        frameobj.getPattern = frame_getPattern;
+        frameobj.patternTexture = null;    // generated on demand and cached
+        frameobj.webGL_texture = null;
+        wt = this.runtime.findWaitingTexture(frame[0]);
+        if (wt){
+          frameobj.texture_img = wt;
+        }else{
+          frameobj.texture_img = new Image();
+          frameobj.texture_img.cr_src = frame[0];
+          frameobj.texture_img.cr_filesize = frame[1];
+          frameobj.texture_img.c2webGL_texture = null;
+          this.runtime.waitForImageLoad(frameobj.texture_img, frame[0]);
+        }
+        cr.seal(frameobj);
+        animobj.frames.push(frameobj);
+        this.all_frames.push(frameobj);
+      }
+      cr.seal(animobj);
+      this.animations[i] = animobj;    // swap array data for object
+    }
+  };
+  typeProto.updateAllCurrentTexture = function ()
+  {
+    var i, len, inst;
+    for (i = 0, len = this.instances.length; i < len; i++)
+    {
+      inst = this.instances[i];
+      inst.curWebGLTexture = inst.curFrame.webGL_texture;
+    }
+  };
+  typeProto.onLostWebGLContext = function ()
+  {
+    if (this.is_family)
+      return;
+    var i, len, frame;
+    for (i = 0, len = this.all_frames.length; i < len; ++i)
+    {
+      frame = this.all_frames[i];
+      frame.texture_img.c2webGL_texture = null;
+      frame.webGL_texture = null;
+    }
+    this.has_loaded_textures = false;
+    this.updateAllCurrentTexture();
+  };
+  typeProto.onRestoreWebGLContext = function ()
+  {
+    if (this.is_family || !this.instances.length)
+      return;
+    var i, len, frame;
+    for (i = 0, len = this.all_frames.length; i < len; ++i)
+    {
+      frame = this.all_frames[i];
+      frame.webGL_texture = this.runtime.glwrap.loadTexture(frame.texture_img, true, this.runtime.linearSampling, frame.pixelformat);
+    }
+    this.updateAllCurrentTexture();
+  };
+  typeProto.loadTextures = function ()
+  {
+    if (this.is_family || this.has_loaded_textures || !this.runtime.glwrap)
+      return;
+    var i, len, frame;
+    for (i = 0, len = this.all_frames.length; i < len; ++i)
+    {
+      frame = this.all_frames[i];
+      this.all_frames[i].webGL_texture = this.runtime.glwrap.loadTexture(frame.texture_img, true, this.runtime.linearSampling, frame.pixelformat);
+    }
+    this.has_loaded_textures = true;
+  };
+  typeProto.unloadTextures = function ()
+  {
+    if (this.is_family || this.instances.length || !this.has_loaded_textures)
+      return;
+    var i, len, frame;
+    for (i = 0, len = this.all_frames.length; i < len; ++i)
+    {
+      frame = this.all_frames[i];
+      this.runtime.glwrap.deleteTexture(frame.webGL_texture);
+      frame.webGL_texture = null;
+    }
+    this.has_loaded_textures = false;
+  };
+  var already_drawn_images = [];
+  typeProto.preloadCanvas2D = function (ctx)
+  {
+    var i, len, frameimg;
+    already_drawn_images.length = 0;
+    for (i = 0, len = this.all_frames.length; i < len; ++i)
+    {
+      frameimg = this.all_frames[i].texture_img;
+      if (already_drawn_images.indexOf(frameimg) !== -1)
+          continue;
+      ctx.drawImage(frameimg, 0, 0);
+      already_drawn_images.push(frameimg);
+    }
+  };
+  pluginProto.Instance = function(type)
+  {
+    this.type = type;
+    this.runtime = type.runtime;
+  };
+  var instanceProto = pluginProto.Instance.prototype;
+  instanceProto.onCreate = function()
+  {
+    this.visible = (this.properties[0] === 0);  // 0=visible, 1=invisible
+    this.isTicking = false;
+    this.inAnimTrigger = false;
+    this.rcTex = new cr.rect(0, 0, 1, 1);
+    this.cur_animation = this.getAnimationByName(this.properties[2]) || this.type.animations[0];
+    this.cur_frame = this.properties[1];
+    if (this.cur_frame < 0){
+      this.cur_frame = 0;
+    }
+    if (this.cur_frame >= this.cur_animation.frames.length){
+      this.cur_frame = this.cur_animation.frames.length - 1;
+    }
+    this.cur_anim_speed = this.cur_animation.speed;
+    this.cur_anim_repeatto = this.cur_animation.repeatto;
+    if (!(this.type.animations.length === 1 && this.type.animations[0].frames.length === 1) && this.type.animations[0].speed !== 0)
+    {
+      this.runtime.tickMe(this);
+      this.isTicking = true;
+    }
+    if (this.recycled){
+      this.animTimer.reset();
+    } else {
+      this.animTimer = new cr.KahanAdder();
+    }
+    this.frameStart = this.getNowTime();
+    this.animPlaying = true;
+    this.animRepeats = 0;
+    this.animForwards = true;
+    this.animTriggerName = "";
+    this.changeAnimName = "";
+    this.changeAnimFrom = 0;
+    this.changeAnimFrame = -1;
+    this.type.loadTextures();
+    var i, leni, j, lenj;
+    var anim, frame, uv, maintex;
+    for (i = 0, leni = this.type.animations.length; i < leni; i++)
+    {
+      anim = this.type.animations[i];
+      for (j = 0, lenj = anim.frames.length; j < lenj; j++)
+      {
+        frame = anim.frames[j];
+        if (frame.width === 0)
+        {
+          frame.width = frame.texture_img.width;
+          frame.height = frame.texture_img.height;
+        }
+        if (frame.spritesheeted)
+        {
+          maintex = frame.texture_img;
+          if (frame.offx === 0 && frame.offy === 0 && frame.width === maintex.width && frame.height === maintex.height)
+          {
+            frame.spritesheeted = false;
+          }
+        }
+      }
+    }
+    if (!this.type.pattern){
+      if (this.runtime.glwrap){
+        this.cur_animation.frames[this.cur_frame].patternTexture = this.runtime.glwrap.loadTexture(
+          this.cur_animation.frames[this.cur_frame].getPattern(),
+          true,
+          this.runtime.linearSampling,
+          this.cur_animation.frames[this.cur_frame].pixelformat
+        );
+      }else{
+        this.cur_animation.frames[this.cur_frame].patternTexture = this.runtime.ctx.createPattern(this.cur_animation.frames[this.cur_frame].getPattern(), "repeat");
+      }
+      this.cur_animation.frames[this.cur_frame].patternData = "";//delete cached canvas
+    }
+    this.type.pattern = this.cur_animation.frames[this.cur_frame].patternTexture;
+    this.curFrame = this.cur_animation.frames[this.cur_frame];
+  };
+  instanceProto.saveToJSON = function ()
+  {
+    var o = {
+      "a": this.cur_animation.sid,
+      "f": this.cur_frame,
+      "cas": this.cur_anim_speed,
+      "fs": this.frameStart,
+      "ar": this.animRepeats,
+      "at": this.animTimer.sum,
+      "rt": this.cur_anim_repeatto
+    };
+    if (!this.animPlaying)
+      o["ap"] = this.animPlaying;
+    if (!this.animForwards)
+      o["af"] = this.animForwards;
+    return o;
+  };
+  instanceProto.loadFromJSON = function (o)
+  {
+    var anim = this.getAnimationBySid(o["a"]);
+    if (anim)
+      this.cur_animation = anim;
+    this.cur_frame = o["f"];
+    if (this.cur_frame < 0)
+      this.cur_frame = 0;
+    if (this.cur_frame >= this.cur_animation.frames.length)
+      this.cur_frame = this.cur_animation.frames.length - 1;
+    this.cur_anim_speed = o["cas"];
+    this.frameStart = o["fs"];
+    this.animRepeats = o["ar"];
+    this.animTimer.reset();
+    this.animTimer.sum = o["at"];
+    this.animPlaying = o.hasOwnProperty("ap") ? o["ap"] : true;
+    this.animForwards = o.hasOwnProperty("af") ? o["af"] : true;
+    if (o.hasOwnProperty("rt")){
+      this.cur_anim_repeatto = o["rt"];
+    } else {
+      this.cur_anim_repeatto = this.cur_animation.repeatto;
+    }
+    this.curFrame = this.cur_animation.frames[this.cur_frame];
+    this.curWebGLTexture = this.curFrame.webGL_texture;
+  };
+  instanceProto.animationFinish = function (reverse)
+  {
+    this.cur_frame = reverse ? 0 : this.cur_animation.frames.length - 1;
+    this.animPlaying = false;
+    this.animTriggerName = this.cur_animation.name;
+    this.inAnimTrigger = true;
+    this.runtime.trigger(cr.plugins_.TiledSprite.prototype.cnds.OnAnyAnimFinished, this);
+    this.runtime.trigger(cr.plugins_.TiledSprite.prototype.cnds.OnAnimFinished, this);
+    this.inAnimTrigger = false;
+    this.animRepeats = 0;
+  };
+  instanceProto.getNowTime = function()
+  {
+    return this.animTimer.sum;
+  };
+  instanceProto.tick = function()
+  {
+    this.animTimer.add(this.runtime.getDt(this));
+    if (this.changeAnimName.length)
+      this.doChangeAnim();
+    if (this.changeAnimFrame >= 0)
+      this.doChangeAnimFrame();
+    var now = this.getNowTime();
+    var cur_animation = this.cur_animation;
+    var prev_frame = cur_animation.frames[this.cur_frame];
+    var next_frame;
+    var cur_frame_time = prev_frame.duration / this.cur_anim_speed;
+    if (this.animPlaying && now >= this.frameStart + cur_frame_time)
+    {
+      if (this.animForwards){
+        this.cur_frame++;
+      }else{
+        this.cur_frame--;
+      }
+      this.frameStart += cur_frame_time;
+      if (this.cur_frame >= cur_animation.frames.length){
+        if (cur_animation.pingpong){
+          this.animForwards = false;
+          this.cur_frame = cur_animation.frames.length - 2;
+        }
+        else if (cur_animation.loop){
+          this.cur_frame = this.cur_anim_repeatto;
+        }else{
+          this.animRepeats++;
+          if (this.animRepeats >= cur_animation.repeatcount){
+            this.animationFinish(false);
+          }else{
+            this.cur_frame = this.cur_anim_repeatto;
+          }
+        }
+      }
+      if (this.cur_frame < 0)
+      {
+        if (cur_animation.pingpong)
+        {
+          this.cur_frame = 1;
+          this.animForwards = true;
+          if (!cur_animation.loop)
+          {
+            this.animRepeats++;
+            if (this.animRepeats >= cur_animation.repeatcount)
+            {
+              this.animationFinish(true);
+            }
+          }
+        }
+        else
+        {
+          if (cur_animation.loop)
+          {
+            this.cur_frame = this.cur_anim_repeatto;
+          }
+          else
+          {
+            this.animRepeats++;
+            if (this.animRepeats >= cur_animation.repeatcount)
+            {
+              this.animationFinish(true);
+            }
+            else
+            {
+              this.cur_frame = this.cur_anim_repeatto;
+            }
+          }
+        }
+      }
+      if (this.cur_frame < 0)
+        this.cur_frame = 0;
+      else if (this.cur_frame >= cur_animation.frames.length)
+        this.cur_frame = cur_animation.frames.length - 1;
+      if (now > this.frameStart + (cur_animation.frames[this.cur_frame].duration / this.cur_anim_speed))
+      {
+        this.frameStart = now;
+      }
+      next_frame = cur_animation.frames[this.cur_frame];
+      this.OnFrameChanged(prev_frame, next_frame);
+    }
+  };
+  instanceProto.getAnimationByName = function (name_)
+  {
+    var i, len, a;
+    for (i = 0, len = this.type.animations.length; i < len; i++)
+    {
+      a = this.type.animations[i];
+      if (cr.equals_nocase(a.name, name_))
+        return a;
+    }
+    return null;
+  };
+  instanceProto.getAnimationBySid = function (sid_)
+  {
+    var i, len, a;
+    for (i = 0, len = this.type.animations.length; i < len; i++)
+    {
+      a = this.type.animations[i];
+      if (a.sid === sid_)
+        return a;
+    }
+    return null;
+  };
+  instanceProto.doChangeAnim = function ()
+  {
+    var prev_frame = this.cur_animation.frames[this.cur_frame];
+    var anim = this.getAnimationByName(this.changeAnimName);
+    this.changeAnimName = "";
+    if (!anim)
+      return;
+    if (cr.equals_nocase(anim.name, this.cur_animation.name) && this.animPlaying)
+      return;
+    this.cur_animation = anim;
+    this.cur_anim_speed = anim.speed;
+    this.cur_anim_repeatto = anim.repeatto;
+    if (this.cur_frame < 0)
+      this.cur_frame = 0;
+    if (this.cur_frame >= this.cur_animation.frames.length)
+      this.cur_frame = this.cur_animation.frames.length - 1;
+    if (this.changeAnimFrom === 1)
+      this.cur_frame = 0;
+    this.animPlaying = true;
+    this.frameStart = this.getNowTime();
+    this.animForwards = true;
+    this.OnFrameChanged(prev_frame, this.cur_animation.frames[this.cur_frame]);
+    this.runtime.redraw = true;
+  };
+  instanceProto.doChangeAnimFrame = function ()
+  {
+    var prev_frame = this.cur_animation.frames[this.cur_frame];
+    var prev_frame_number = this.cur_frame;
+    this.cur_frame = cr.floor(this.changeAnimFrame);
+    if (this.cur_frame < 0)
+      this.cur_frame = 0;
+    if (this.cur_frame >= this.cur_animation.frames.length)
+      this.cur_frame = this.cur_animation.frames.length - 1;
+    if (prev_frame_number !== this.cur_frame)
+    {
+      this.OnFrameChanged(prev_frame, this.cur_animation.frames[this.cur_frame]);
+      this.frameStart = this.getNowTime();
+      this.runtime.redraw = true;
+    }
+    this.changeAnimFrame = -1;
+  };
+  instanceProto.OnFrameChanged = function (prev_frame, next_frame)
+  {
+    var oldw = prev_frame.width;
+    var oldh = prev_frame.height;
+    var neww = next_frame.width;
+    var newh = next_frame.height;
+    if (oldw != neww)
+      this.width *= (neww / oldw);
+    if (oldh != newh)
+      this.height *= (newh / oldh);
+    this.set_bbox_changed();
+    if (!next_frame.patternTexture){
+      if (this.runtime.glwrap){
+        next_frame.patternTexture = this.runtime.glwrap.loadTexture(next_frame.getPattern(), true, this.runtime.linearSampling, next_frame.pixelformat);
+      } else {
+        next_frame.patternTexture = this.runtime.ctx.createPattern(next_frame.getPattern(), "repeat");
+      }
+      next_frame.patternData = "";//delete cached canvas
+    }
+    this.type.pattern = next_frame.patternTexture;
+    this.curFrame = next_frame;
+    var i, len, b;
+    for (i = 0, len = this.behavior_insts.length; i < len; i++)
+    {
+      b = this.behavior_insts[i];
+      if (b.onSpriteFrameChanged)
+        b.onSpriteFrameChanged(prev_frame, next_frame);
+    }
+    this.runtime.trigger(cr.plugins_.TiledSprite.prototype.cnds.OnFrameChanged, this);
+  };
+  instanceProto.draw = function(ctx)
+  {
+    if(!this.debugShowed){
+      console.log(this);
+      this.debugShowed = true;
+    }
+    ctx.globalAlpha = this.opacity;
+    ctx.save();
+    var cur_frame = this.curFrame;
+    var cur_image = cur_frame.texture_img;
+    ctx.fillStyle = this.type.pattern;
+    var myx = this.x;
+    var myy = this.y;
+    var w = this.width;
+    var h = this.height;
+    if (this.runtime.pixel_rounding)
+    {
+      myx = Math.round(myx);
+      myy = Math.round(myy);
+    }
+    var drawX = -(this.hotspotX * this.width);
+    var drawY = -(this.hotspotY * this.height);
+    var offX = drawX % cur_image.width;
+    var offY = drawY % cur_image.height;
+    if (offX < 0)
+      offX += cur_image.width;
+    if (offY < 0)
+      offY += cur_image.height;
+    ctx.translate(myx, myy);
+    ctx.rotate(this.angle);
+    ctx.translate(offX, offY);
+    ctx.fillRect(drawX - offX,
+           drawY - offY,
+           this.width,
+           this.height);
+    ctx.restore();
+  };
+  instanceProto.drawGL_earlyZPass = function(glw)
+  {
+    this.drawGL(glw);
+  };
+  instanceProto.drawGL = function(glw)
+  {
+    glw.setTexture(this.type.pattern);
+    glw.setOpacity(this.opacity);
+    var q = this.bquad;
+    var rcTex = this.rcTex;
+    rcTex.right = this.width / this.curFrame.width;
+    rcTex.bottom = this.height / this.curFrame.height;
+    if (this.runtime.pixel_rounding)
+    {
+      var ox = Math.round(this.x) - this.x;
+      var oy = Math.round(this.y) - this.y;
+      glw.quadTex(q.tlx + ox, q.tly + oy, q.trx + ox, q.try_ + oy, q.brx + ox, q.bry + oy, q.blx + ox, q.bly + oy, this.rcTex);
+    }else{
+      glw.quadTex(q.tlx, q.tly, q.trx, q.try_, q.brx, q.bry, q.blx, q.bly, this.rcTex);
+    }
+  };
+  instanceProto.getImagePointIndexByName = function(name_)
+  {
+    var cur_frame = this.curFrame;
+    var i, len;
+    for (i = 0, len = cur_frame.image_points.length; i < len; i++)
+    {
+      if (cr.equals_nocase(name_, cur_frame.image_points[i][0]))
+        return i;
+    }
+    return -1;
+  };
+  instanceProto.getImagePoint = function(imgpt, getX)
+  {
+    var cur_frame = this.curFrame;
+    var image_points = cur_frame.image_points;
+    var index;
+    if (cr.is_string(imgpt))
+      index = this.getImagePointIndexByName(imgpt);
+    else
+      index = imgpt - 1;  // 0 is origin
+    index = cr.floor(index);
+    if (index < 0 || index >= image_points.length)
+      return getX ? this.x : this.y;  // return origin
+    var x = (image_points[index][1] - cur_frame.hotspotX) * this.width;
+    var y = image_points[index][2];
+    y = (y - cur_frame.hotspotY) * this.height;
+    var cosa = Math.cos(this.angle);
+    var sina = Math.sin(this.angle);
+    var x_temp = (x * cosa) - (y * sina);
+    y = (y * cosa) + (x * sina);
+    x = x_temp;
+    x += this.x;
+    y += this.y;
+    return getX ? x : y;
+  };
+  function Cnds() {};
+  Cnds.prototype.IsAnimPlaying = function (animname)
+  {
+    if (this.changeAnimName.length)
+      return cr.equals_nocase(this.changeAnimName, animname);
+    else
+      return cr.equals_nocase(this.cur_animation.name, animname);
+  };
+  Cnds.prototype.CompareFrame = function (cmp, framenum)
+  {
+    return cr.do_cmp(this.cur_frame, cmp, framenum);
+  };
+  Cnds.prototype.CompareAnimSpeed = function (cmp, x)
+  {
+    var s = (this.animForwards ? this.cur_anim_speed : -this.cur_anim_speed);
+    return cr.do_cmp(s, cmp, x);
+  };
+  Cnds.prototype.OnAnimFinished = function (animname)
+  {
+    return cr.equals_nocase(this.animTriggerName, animname);
+  };
+  Cnds.prototype.OnAnyAnimFinished = function ()
+  {
+    return true;
+  };
+  Cnds.prototype.OnFrameChanged = function ()
+  {
+    return true;
+  };
+  Cnds.prototype.IsMirrored = function ()
+  {
+    return this.width < 0;
+  };
+  Cnds.prototype.IsFlipped = function ()
+  {
+    return this.height < 0;
+  };
+  Cnds.prototype.OnURLLoaded = function ()
+  {
+    return true;
+  };
+  pluginProto.cnds = new Cnds();
+  function Acts() {};
+  Acts.prototype.SetEffect = function (effect)
+  {
+    this.compositeOp = cr.effectToCompositeOp(effect);
+    cr.setGLBlend(this, effect, this.runtime.gl);
+    this.runtime.redraw = true;
+  };
+  Acts.prototype.StopAnim = function ()
+  {
+    this.animPlaying = false;
+  };
+  Acts.prototype.StartAnim = function (from)
+  {
+    this.animPlaying = true;
+    this.frameStart = this.getNowTime();
+    if (from === 1 && this.cur_frame !== 0)
+    {
+      this.changeAnimFrame = 0;
+      if (!this.inAnimTrigger)
+        this.doChangeAnimFrame();
+    }
+    if (!this.isTicking)
+    {
+      this.runtime.tickMe(this);
+      this.isTicking = true;
+    }
+  };
+  Acts.prototype.SetAnim = function (animname, from)
+  {
+    this.changeAnimName = animname;
+    this.changeAnimFrom = from;
+    if (!this.isTicking)
+    {
+      this.runtime.tickMe(this);
+      this.isTicking = true;
+    }
+    if (!this.inAnimTrigger)
+      this.doChangeAnim();
+  };
+  Acts.prototype.SetAnimFrame = function (framenumber)
+  {
+    this.changeAnimFrame = framenumber;
+    if (!this.isTicking)
+    {
+      this.runtime.tickMe(this);
+      this.isTicking = true;
+    }
+    if (!this.inAnimTrigger)
+      this.doChangeAnimFrame();
+  };
+  Acts.prototype.SetAnimSpeed = function (s)
+  {
+    this.cur_anim_speed = cr.abs(s);
+    this.animForwards = (s >= 0);
+    if (!this.isTicking)
+    {
+      this.runtime.tickMe(this);
+      this.isTicking = true;
+    }
+  };
+  Acts.prototype.SetMirrored = function (m)
+  {
+    var neww = cr.abs(this.width) * (m === 0 ? -1 : 1);
+    if (this.width === neww)
+      return;
+    this.width = neww;
+    this.set_bbox_changed();
+  };
+  Acts.prototype.SetFlipped = function (f)
+  {
+    var newh = cr.abs(this.height) * (f === 0 ? -1 : 1);
+    if (this.height === newh)
+      return;
+    this.height = newh;
+    this.set_bbox_changed();
+  };
+  Acts.prototype.SetScale = function (s)
+  {
+    var cur_frame = this.curFrame;
+    var mirror_factor = (this.width < 0 ? -1 : 1);
+    var flip_factor = (this.height < 0 ? -1 : 1);
+    var new_width = cur_frame.width * s * mirror_factor;
+    var new_height = cur_frame.height * s * flip_factor;
+    if (this.width !== new_width || this.height !== new_height)
+    {
+      this.width = new_width;
+      this.height = new_height;
+      this.set_bbox_changed();
+    }
+  };
+  Acts.prototype.LoadURL = function (url_, resize_)
+  {
+  };
+  pluginProto.acts = new Acts();
+  function Exps() {};
+  Exps.prototype.AnimationFrame = function (ret)
+  {
+    ret.set_int(this.cur_frame);
+  };
+  Exps.prototype.AnimationFrameCount = function (ret)
+  {
+    ret.set_int(this.cur_animation.frames.length);
+  };
+  Exps.prototype.AnimationName = function (ret)
+  {
+    ret.set_string(this.cur_animation.name);
+  };
+  Exps.prototype.AnimationSpeed = function (ret)
+  {
+    ret.set_float(this.animForwards ? this.cur_anim_speed : -this.cur_anim_speed);
+  };
+  Exps.prototype.ImageWidth = function (ret)
+  {
+    ret.set_float(this.curFrame.width);
+  };
+  Exps.prototype.ImageHeight = function (ret)
+  {
+    ret.set_float(this.curFrame.height);
+  };
+  pluginProto.exps = new Exps();
+}());
+;
+;
 cr.plugins_.Touch = function(runtime)
 {
 	this.runtime = runtime;
@@ -27874,6 +28603,439 @@ cr.plugins_.video = function(runtime)
 }());
 ;
 ;
+cr.behaviors.EightDir = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var behaviorProto = cr.behaviors.EightDir.prototype;
+	behaviorProto.Type = function(behavior, objtype)
+	{
+		this.behavior = behavior;
+		this.objtype = objtype;
+		this.runtime = behavior.runtime;
+	};
+	var behtypeProto = behaviorProto.Type.prototype;
+	behtypeProto.onCreate = function()
+	{
+	};
+	behaviorProto.Instance = function(type, inst)
+	{
+		this.type = type;
+		this.behavior = type.behavior;
+		this.inst = inst;				// associated object instance to modify
+		this.runtime = type.runtime;
+		this.upkey = false;
+		this.downkey = false;
+		this.leftkey = false;
+		this.rightkey = false;
+		this.ignoreInput = false;
+		this.simup = false;
+		this.simdown = false;
+		this.simleft = false;
+		this.simright = false;
+		this.lastuptick = -1;
+		this.lastdowntick = -1;
+		this.lastlefttick = -1;
+		this.lastrighttick = -1;
+		this.dx = 0;
+		this.dy = 0;
+	};
+	var behinstProto = behaviorProto.Instance.prototype;
+	behinstProto.onCreate = function()
+	{
+		this.maxspeed = this.properties[0];
+		this.acc = this.properties[1];
+		this.dec = this.properties[2];
+		this.directions = this.properties[3];	// 0=Up & down, 1=Left & right, 2=4 directions, 3=8 directions"
+		this.angleMode = this.properties[4];	// 0=No,1=90-degree intervals, 2=45-degree intervals, 3=360 degree (smooth)
+		this.defaultControls = (this.properties[5] === 1);	// 0=no, 1=yes
+		this.enabled = (this.properties[6] !== 0);
+		if (this.defaultControls && !this.runtime.isDomFree)
+		{
+			jQuery(document).keydown(
+				(function (self) {
+					return function(info) {
+						self.onKeyDown(info);
+					};
+				})(this)
+			);
+			jQuery(document).keyup(
+				(function (self) {
+					return function(info) {
+						self.onKeyUp(info);
+					};
+				})(this)
+			);
+		}
+	};
+	behinstProto.saveToJSON = function ()
+	{
+		return {
+			"dx": this.dx,
+			"dy": this.dy,
+			"enabled": this.enabled,
+			"maxspeed": this.maxspeed,
+			"acc": this.acc,
+			"dec": this.dec,
+			"ignoreInput": this.ignoreInput
+		};
+	};
+	behinstProto.loadFromJSON = function (o)
+	{
+		this.dx = o["dx"];
+		this.dy = o["dy"];
+		this.enabled = o["enabled"];
+		this.maxspeed = o["maxspeed"];
+		this.acc = o["acc"];
+		this.dec = o["dec"];
+		this.ignoreInput = o["ignoreInput"];
+		this.upkey = false;
+		this.downkey = false;
+		this.leftkey = false;
+		this.rightkey = false;
+		this.simup = false;
+		this.simdown = false;
+		this.simleft = false;
+		this.simright = false;
+		this.lastuptick = -1;
+		this.lastdowntick = -1;
+		this.lastlefttick = -1;
+		this.lastrighttick = -1;
+	};
+	behinstProto.onKeyDown = function (info)
+	{
+		var tickcount = this.runtime.tickcount;
+		switch (info.which) {
+		case 37:	// left
+			info.preventDefault();
+			if (this.lastlefttick < tickcount)
+				this.leftkey = true;
+			break;
+		case 38:	// up
+			info.preventDefault();
+			if (this.lastuptick < tickcount)
+				this.upkey = true;
+			break;
+		case 39:	// right
+			info.preventDefault();
+			if (this.lastrighttick < tickcount)
+				this.rightkey = true;
+			break;
+		case 40:	// down
+			info.preventDefault();
+			if (this.lastdowntick < tickcount)
+				this.downkey = true;
+			break;
+		}
+	};
+	behinstProto.onKeyUp = function (info)
+	{
+		var tickcount = this.runtime.tickcount;
+		switch (info.which) {
+		case 37:	// left
+			info.preventDefault();
+			this.leftkey = false;
+			this.lastlefttick = tickcount;
+			break;
+		case 38:	// up
+			info.preventDefault();
+			this.upkey = false;
+			this.lastuptick = tickcount;
+			break;
+		case 39:	// right
+			info.preventDefault();
+			this.rightkey = false;
+			this.lastrighttick = tickcount;
+			break;
+		case 40:	// down
+			info.preventDefault();
+			this.downkey = false;
+			this.lastdowntick = tickcount;
+			break;
+		}
+	};
+	behinstProto.onWindowBlur = function ()
+	{
+		this.upkey = false;
+		this.downkey = false;
+		this.leftkey = false;
+		this.rightkey = false;
+	};
+	behinstProto.tick = function ()
+	{
+		var dt = this.runtime.getDt(this.inst);
+		var left = this.leftkey || this.simleft;
+		var right = this.rightkey || this.simright;
+		var up = this.upkey || this.simup;
+		var down = this.downkey || this.simdown;
+		this.simleft = false;
+		this.simright = false;
+		this.simup = false;
+		this.simdown = false;
+		if (!this.enabled)
+			return;
+		var collobj = this.runtime.testOverlapSolid(this.inst);
+		if (collobj)
+		{
+			this.runtime.registerCollision(this.inst, collobj);
+			if (!this.runtime.pushOutSolidNearest(this.inst))
+				return;		// must be stuck in solid
+		}
+		if (this.ignoreInput)
+		{
+			left = false;
+			right = false;
+			up = false;
+			down = false;
+		}
+		if (this.directions === 0)
+		{
+			left = false;
+			right = false;
+		}
+		else if (this.directions === 1)
+		{
+			up = false;
+			down = false;
+		}
+		if (this.directions === 2 && (up || down))
+		{
+			left = false;
+			right = false;
+		}
+		if (left == right)	// both up or both down
+		{
+			if (this.dx < 0)
+			{
+				this.dx += this.dec * dt;
+				if (this.dx > 0)
+					this.dx = 0;
+			}
+			else if (this.dx > 0)
+			{
+				this.dx -= this.dec * dt;
+				if (this.dx < 0)
+					this.dx = 0;
+			}
+		}
+		if (up == down)
+		{
+			if (this.dy < 0)
+			{
+				this.dy += this.dec * dt;
+				if (this.dy > 0)
+					this.dy = 0;
+			}
+			else if (this.dy > 0)
+			{
+				this.dy -= this.dec * dt;
+				if (this.dy < 0)
+					this.dy = 0;
+			}
+		}
+		if (left && !right)
+		{
+			if (this.dx > 0)
+				this.dx -= (this.acc + this.dec) * dt;
+			else
+				this.dx -= this.acc * dt;
+		}
+		if (right && !left)
+		{
+			if (this.dx < 0)
+				this.dx += (this.acc + this.dec) * dt;
+			else
+				this.dx += this.acc * dt;
+		}
+		if (up && !down)
+		{
+			if (this.dy > 0)
+				this.dy -= (this.acc + this.dec) * dt;
+			else
+				this.dy -= this.acc * dt;
+		}
+		if (down && !up)
+		{
+			if (this.dy < 0)
+				this.dy += (this.acc + this.dec) * dt;
+			else
+				this.dy += this.acc * dt;
+		}
+		var ax, ay;
+		if (this.dx !== 0 || this.dy !== 0)
+		{
+			var speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+			if (speed > this.maxspeed)
+			{
+				var a = Math.atan2(this.dy, this.dx);
+				this.dx = this.maxspeed * Math.cos(a);
+				this.dy = this.maxspeed * Math.sin(a);
+			}
+			var oldx = this.inst.x;
+			var oldy = this.inst.y;
+			var oldangle = this.inst.angle;
+			this.inst.x += this.dx * dt;
+			this.inst.set_bbox_changed();
+			collobj = this.runtime.testOverlapSolid(this.inst);
+			if (collobj)
+			{
+				if (!this.runtime.pushOutSolid(this.inst, (this.dx < 0 ? 1 : -1), 0, Math.abs(Math.floor(this.dx * dt))))
+				{
+					this.inst.x = oldx;
+				}
+				this.dx = 0;
+				this.inst.set_bbox_changed();
+				this.runtime.registerCollision(this.inst, collobj);
+			}
+			this.inst.y += this.dy * dt;
+			this.inst.set_bbox_changed();
+			collobj = this.runtime.testOverlapSolid(this.inst);
+			if (collobj)
+			{
+				if (!this.runtime.pushOutSolid(this.inst, 0, (this.dy < 0 ? 1 : -1), Math.abs(Math.floor(this.dy * dt))))
+				{
+					this.inst.y = oldy;
+				}
+				this.dy = 0;
+				this.inst.set_bbox_changed();
+				this.runtime.registerCollision(this.inst, collobj);
+			}
+			ax = cr.round6dp(this.dx);
+			ay = cr.round6dp(this.dy);
+			if ((ax !== 0 || ay !== 0) && this.inst.type.plugin.is_rotatable)
+			{
+				if (this.angleMode === 1)	// 90 degree intervals
+					this.inst.angle = cr.to_clamped_radians(Math.round(cr.to_degrees(Math.atan2(ay, ax)) / 90.0) * 90.0);
+				else if (this.angleMode === 2)	// 45 degree intervals
+					this.inst.angle = cr.to_clamped_radians(Math.round(cr.to_degrees(Math.atan2(ay, ax)) / 45.0) * 45.0);
+				else if (this.angleMode === 3)	// 360 degree
+					this.inst.angle = Math.atan2(ay, ax);
+			}
+			this.inst.set_bbox_changed();
+			if (this.inst.angle != oldangle)
+			{
+				collobj = this.runtime.testOverlapSolid(this.inst);
+				if (collobj)
+				{
+					this.inst.angle = oldangle;
+					this.inst.set_bbox_changed();
+					this.runtime.registerCollision(this.inst, collobj);
+				}
+			}
+		}
+	};
+	function Cnds() {};
+	Cnds.prototype.IsMoving = function ()
+	{
+		var speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+		return speed > 1e-10;
+	};
+	Cnds.prototype.CompareSpeed = function (cmp, s)
+	{
+		var speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+		return cr.do_cmp(speed, cmp, s);
+	};
+	behaviorProto.cnds = new Cnds();
+	function Acts() {};
+	Acts.prototype.Stop = function ()
+	{
+		this.dx = 0;
+		this.dy = 0;
+	};
+	Acts.prototype.Reverse = function ()
+	{
+		this.dx *= -1;
+		this.dy *= -1;
+	};
+	Acts.prototype.SetIgnoreInput = function (ignoring)
+	{
+		this.ignoreInput = ignoring;
+	};
+	Acts.prototype.SetSpeed = function (speed)
+	{
+		if (speed < 0)
+			speed = 0;
+		if (speed > this.maxspeed)
+			speed = this.maxspeed;
+		var a = Math.atan2(this.dy, this.dx);
+		this.dx = speed * Math.cos(a);
+		this.dy = speed * Math.sin(a);
+	};
+	Acts.prototype.SetMaxSpeed = function (maxspeed)
+	{
+		this.maxspeed = maxspeed;
+		if (this.maxspeed < 0)
+			this.maxspeed = 0;
+	};
+	Acts.prototype.SetAcceleration = function (acc)
+	{
+		this.acc = acc;
+		if (this.acc < 0)
+			this.acc = 0;
+	};
+	Acts.prototype.SetDeceleration = function (dec)
+	{
+		this.dec = dec;
+		if (this.dec < 0)
+			this.dec = 0;
+	};
+	Acts.prototype.SimulateControl = function (ctrl)
+	{
+		switch (ctrl) {
+		case 0:		this.simleft = true;	break;
+		case 1:		this.simright = true;	break;
+		case 2:		this.simup = true;		break;
+		case 3:		this.simdown = true;	break;
+		}
+	};
+	Acts.prototype.SetEnabled = function (en)
+	{
+		this.enabled = (en === 1);
+	};
+	Acts.prototype.SetVectorX = function (x_)
+	{
+		this.dx = x_;
+	};
+	Acts.prototype.SetVectorY = function (y_)
+	{
+		this.dy = y_;
+	};
+	behaviorProto.acts = new Acts();
+	function Exps() {};
+	Exps.prototype.Speed = function (ret)
+	{
+		ret.set_float(Math.sqrt(this.dx * this.dx + this.dy * this.dy));
+	};
+	Exps.prototype.MaxSpeed = function (ret)
+	{
+		ret.set_float(this.maxspeed);
+	};
+	Exps.prototype.Acceleration = function (ret)
+	{
+		ret.set_float(this.acc);
+	};
+	Exps.prototype.Deceleration = function (ret)
+	{
+		ret.set_float(this.dec);
+	};
+	Exps.prototype.MovingAngle = function (ret)
+	{
+		ret.set_float(cr.to_degrees(Math.atan2(this.dy, this.dx)));
+	};
+	Exps.prototype.VectorX = function (ret)
+	{
+		ret.set_float(this.dx);
+	};
+	Exps.prototype.VectorY = function (ret)
+	{
+		ret.set_float(this.dy);
+	};
+	behaviorProto.exps = new Exps();
+}());
+;
+;
 cr.behaviors.LOS = function(runtime)
 {
 	this.runtime = runtime;
@@ -29736,6 +30898,199 @@ cr.behaviors.scrollto = function(runtime)
 }());
 ;
 ;
+cr.behaviors.scrollto_plus = function(runtime)
+{
+	this.runtime = runtime;
+	this.shakeMag = 0;
+	this.shakeStart = 0;
+	this.shakeEnd = 0;
+	this.shakeMode = 0;
+};
+(function ()
+{
+	var behaviorProto = cr.behaviors.scrollto_plus.prototype;
+	behaviorProto.Type = function(behavior, objtype)
+	{
+		this.behavior = behavior;
+		this.objtype = objtype;
+		this.runtime = behavior.runtime;
+	};
+	var behtypeProto = behaviorProto.Type.prototype;
+	behtypeProto.onCreate = function()
+	{
+	};
+	behaviorProto.Instance = function(type, inst)
+	{
+		this.type = type;
+		this.behavior = type.behavior;
+		this.inst = inst;				// associated object instance to modify
+		this.runtime = type.runtime;
+		this.insetTop = 0;
+		this.insetLeft = 0;
+		this.insetBottom = 0;
+		this.insetRight = 0;
+	};
+	var behinstProto = behaviorProto.Instance.prototype;
+	behinstProto.onCreate = function()
+	{
+		this.insetTop = this.properties[0];	// InsetTop
+		this.insetLeft = this.properties[1];	// InsetLeft
+		this.insetBottom = this.properties[2];	// InsetBottom
+		this.insetRight = this.properties[3];	// InsetRight
+		console.log("bht_scroll:" + this.insetTop + "," + this.insetLeft + "," + this.insetBottom + "," + this.insetRight);
+		this.enabled = (this.properties[0] !== 0);
+	};
+	behinstProto.saveToJSON = function ()
+	{
+		return {
+			"smg": this.behavior.shakeMag,
+			"ss": this.behavior.shakeStart,
+			"se": this.behavior.shakeEnd,
+			"smd": this.behavior.shakeMode
+		};
+	};
+	behinstProto.loadFromJSON = function (o)
+	{
+		this.behavior.shakeMag = o["smg"];
+		this.behavior.shakeStart = o["ss"];
+		this.behavior.shakeEnd = o["se"];
+		this.behavior.shakeMode = o["smd"];
+	};
+	behinstProto.tick = function ()
+	{
+	};
+	function getScrollToBehavior(inst)
+	{
+		var i, len, binst;
+		for (i = 0, len = inst.behavior_insts.length; i < len; ++i)
+		{
+			binst = inst.behavior_insts[i];
+			if (binst.behavior instanceof cr.behaviors.scrollto_plus)
+				return binst;
+		}
+		return null;
+	};
+	behinstProto.tick2 = function ()
+	{
+		if (!this.enabled)
+			return;
+		var all = this.behavior.my_instances.valuesRef();
+		var sumx = 0, sumy = 0;
+		var i, len, binst, count = 0;
+		for (i = 0, len = all.length; i < len; i++)
+		{
+			binst = getScrollToBehavior(all[i]);
+			if (!binst || !binst.enabled)
+				continue;
+			sumx += all[i].x;
+			sumy += all[i].y;
+			++count;
+		}
+		var layout = this.inst.layer.layout;
+		var now = this.runtime.kahanTime.sum;
+		var offx = 0, offy = 0;
+		var insetLeft = this.insetLeft;
+		var insetTop = this.insetTop;
+		var insetRight = this.insetRight;
+		var insetBottom = this.insetBottom;
+		if (now >= this.behavior.shakeStart && now < this.behavior.shakeEnd)
+		{
+			var mag = this.behavior.shakeMag * Math.min(this.runtime.timescale, 1);
+			if (this.behavior.shakeMode === 0)
+				mag *= 1 - (now - this.behavior.shakeStart) / (this.behavior.shakeEnd - this.behavior.shakeStart);
+			var a = Math.random() * Math.PI * 2;
+			var d = Math.random() * mag;
+			offx = Math.cos(a) * d;
+			offy = Math.sin(a) * d;
+			insetLeft = Math.max(0,insetLeft-offx);
+			insetTop = Math.max(0,insetTop-offy);
+			insetRight = Math.max(0,insetRight-offx);
+			insetBottom = Math.max(0,insetBottom-offy);
+		}
+		var offsetX = sumx / count + offx;
+		var offsetY = sumy / count + offy;
+		var layer = this.inst.layer;
+		var viewMidWidth = (layer.viewRight-layer.viewLeft)/2;
+		var viewMidHeight = (layer.viewBottom-layer.viewTop)/2;
+		if(offsetX - insetLeft < viewMidWidth)
+		{
+			offsetX = insetLeft + viewMidWidth;
+		}
+		if(offsetX + insetRight > layout.width - viewMidWidth)
+		{
+			offsetX = layout.width - (viewMidWidth + insetRight);
+		}
+		if(offsetY - insetTop < viewMidHeight)
+		{
+			offsetY = insetTop + viewMidHeight;
+		}
+		if(offsetY + insetBottom > layout.height - viewMidHeight)
+		{
+			offsetY = layout.height - (viewMidHeight + insetBottom);
+		}
+		layout.scrollToX(offsetX);
+		layout.scrollToY(offsetY);
+	};
+	function Cnds() {};
+	Cnds.prototype.Enabled = function ()
+	{
+		return this.enabled;
+	};
+	behaviorProto.cnds = new Cnds();
+	function Acts() {};
+	Acts.prototype.Shake = function (mag, dur, mode)
+	{
+		this.behavior.shakeMag = mag;
+		this.behavior.shakeStart = this.runtime.kahanTime.sum;
+		this.behavior.shakeEnd = this.behavior.shakeStart + dur;
+		this.behavior.shakeMode = mode;
+	};
+	Acts.prototype.SetEnabled = function (e)
+	{
+		this.enabled = (e !== 0);
+	};
+	Acts.prototype.SetInsetTop = function (inset)
+	{
+		this.insetTop = inset;
+	};
+	Acts.prototype.SetInsetLeft = function (inset)
+	{
+		this.insetLeft = inset;
+	};
+	Acts.prototype.SetInsetBottom = function (inset)
+	{
+		this.insetBottom = inset;
+	};
+	Acts.prototype.SetInsetRight = function (inset)
+	{
+		this.insetRight = inset;
+	};
+	behaviorProto.acts = new Acts();
+	function Exps() {};
+	Exps.prototype.Enabled = function (ret)
+	{
+		ret.set_int(this.enabled?1:0);
+	};
+	Exps.prototype.InsetTop = function (ret)
+	{
+		ret.set_int(this.insetTop);
+	};
+	Exps.prototype.InsetLeft = function (ret)
+	{
+		ret.set_int(this.insetLeft);
+	};
+	Exps.prototype.InsetBottom = function (ret)
+	{
+		ret.set_int(this.insetBottom);
+	};
+	Exps.prototype.InsetRight = function (ret)
+	{
+		ret.set_int(this.insetRight);
+	};
+	behaviorProto.exps = new Exps();
+}());
+;
+;
 cr.behaviors.solid = function(runtime)
 {
 	this.runtime = runtime;
@@ -29796,6 +31151,7 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Mouse,
 	cr.plugins_.rex_TouchWrap,
 	cr.plugins_.Rex_Video,
+	cr.plugins_.TiledSprite,
 	cr.plugins_.video,
 	cr.plugins_.Text,
 	cr.plugins_.Sprite,
@@ -29809,6 +31165,8 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.jumpthru,
 	cr.behaviors.LOS,
 	cr.behaviors.Pin,
+	cr.behaviors.EightDir,
+	cr.behaviors.scrollto_plus,
 	cr.plugins_.Keyboard.prototype.cnds.OnKey,
 	cr.behaviors.Platform.prototype.acts.FallThrough,
 	cr.plugins_.Keyboard.prototype.cnds.IsKeyDown,
@@ -29873,6 +31231,11 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Mouse.prototype.cnds.IsOverObject,
 	cr.plugins_.Mouse.prototype.cnds.OnObjectClicked,
 	cr.system_object.prototype.acts.GoToLayout,
+	cr.behaviors.EightDir.prototype.acts.SimulateControl,
+	cr.plugins_.Keyboard.prototype.cnds.OnKeyReleased,
+	cr.plugins_.rex_TouchWrap.prototype.cnds.OnTouchReleasedObject,
+	cr.behaviors.scrollto_plus.prototype.acts.SetEnabled,
+	cr.plugins_.Sprite.prototype.acts.SetOpacity,
 	cr.system_object.prototype.exps.left,
 	cr.system_object.prototype.exps.len
 ];};
