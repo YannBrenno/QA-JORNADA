@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1762462298,
+	"version": 1762531791,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -7,6 +7,7 @@
 		"offlineClient.js",
 		"images/player-sheet0.png",
 		"images/player-sheet1.png",
+		"images/player-sheet2.png",
 		"images/colision.png",
 		"images/ground1.png",
 		"images/jumpthrutile.png",
@@ -39,14 +40,30 @@
 		"images/cura_anim-sheet2.png",
 		"images/inimigo_02_bg_barra_vida-sheet0.png",
 		"images/inimigo_02_barra_vida-sheet0.png",
-		"images/2d_starfield.png",
+		"images/outrun_test.png",
 		"images/cutscene_dev-sheet0.png",
 		"images/bg_tela_inicial-sheet0.png",
+		"images/bg_tela_inicial-sheet1.png",
+		"images/bg_tela_inicial-sheet2.png",
+		"images/bg_tela_inicial-sheet3.png",
+		"images/bg_tela_inicial-sheet4.png",
+		"images/bg_tela_inicial-sheet5.png",
+		"images/bg_tela_inicial-sheet6.png",
+		"images/bg_tela_inicial-sheet7.png",
+		"images/bg_tela_inicial-sheet8.png",
+		"images/bg_tela_inicial-sheet9.png",
+		"images/bg_tela_inicial-sheet10.png",
+		"images/btn_iniciar.png",
+		"images/ui_vida_bg-sheet0.png",
+		"images/respawn_anim-sheet0.png",
+		"images/respawn_anim-sheet1.png",
+		"images/respawn_anim-sheet2.png",
 		"icon-16.png",
 		"icon-32.png",
 		"icon-114.png",
 		"icon-128.png",
 		"icon-256.png",
-		"loading-logo.png"
+		"loading-logo.png",
+		"bg_tela_inicial.mp4"
 	]
 }
