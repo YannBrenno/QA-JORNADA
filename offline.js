@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1762811329,
+	"version": 1762817088,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -110,6 +110,16 @@
 		"images/cadeira_cozinha4-sheet0.png",
 		"images/sprite9-sheet0.png",
 		"images/caixa_dialogo-sheet0.png",
+		"images/overlay_inicial-sheet0.png",
+		"media/attack_espada.ogg",
+		"media/dano_em_metal.ogg",
+		"media/dano_base_humano.ogg",
+		"media/attack_espada_02.ogg",
+		"media/morte_player.ogg",
+		"media/morte_respawn.ogg",
+		"media/dash_player.ogg",
+		"media/apartamento.ogg",
+		"media/tela_inicial.ogg",
 		"icon-16.png",
 		"icon-32.png",
 		"icon-114.png",
