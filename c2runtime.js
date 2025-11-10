@@ -32481,7 +32481,9 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.exps.clamp,
 	cr.system_object.prototype.exps.max,
 	cr.system_object.prototype.acts.GoToLayoutByName,
+	cr.plugins_.Sprite.prototype.acts.MoveToLayer,
 	cr.system_object.prototype.exps.left,
-	cr.system_object.prototype.exps.len
+	cr.system_object.prototype.exps.len,
+	cr.plugins_.Text.prototype.acts.Destroy
 ];};
 
