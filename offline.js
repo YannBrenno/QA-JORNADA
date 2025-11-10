@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1762791232,
+	"version": 1762793857,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -84,6 +84,9 @@
 		"images/moldura_espelho-sheet0.png",
 		"images/criar_reflexo-sheet0.png",
 		"images/bg_dialogo_cama-sheet0.png",
+		"images/sprite11-sheet0.png",
+		"images/parede_transparent-sheet0.png",
+		"images/trigger_parede_transparente-sheet0.png",
 		"icon-16.png",
 		"icon-32.png",
 		"icon-114.png",
