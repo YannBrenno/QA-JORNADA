@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1762817088,
+	"version": 1762820131,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -111,6 +111,7 @@
 		"images/sprite9-sheet0.png",
 		"images/caixa_dialogo-sheet0.png",
 		"images/overlay_inicial-sheet0.png",
+		"images/tilemap.png",
 		"media/attack_espada.ogg",
 		"media/dano_em_metal.ogg",
 		"media/dano_base_humano.ogg",
