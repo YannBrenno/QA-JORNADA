@@ -20314,6 +20314,287 @@ cr.plugins_.Button = function(runtime)
 }());
 ;
 ;
+cr.plugins_.CAMFTimeManager = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.CAMFTimeManager.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+		this.CurrentInstanceToUse 	= null;
+		this.m_OldTotalCheckValue	= 0;
+		this.m_TimeManagerList 		= new Array();
+	};
+	instanceProto.onDestroy = function ()
+	{
+	};
+	instanceProto.saveToJSON = function ()
+	{
+		return {
+			"TimerList": this.m_TimeManagerList
+		};
+	};
+	instanceProto.loadFromJSON = function (o)
+	{
+		this.m_TimeManagerList = o["TimerList"];
+	};
+	instanceProto.draw = function(ctx)
+	{
+	};
+	instanceProto.drawGL = function (glw)
+	{
+	};
+	/*
+		TIME MANAGER
+	*/
+	instanceProto.ConvertHours			= function(Time, ShowDouble)	{var ReturnString = "";var IntVariable = parseInt( ((Time/(60 * 1000))/60)%60);if(IntVariable < 0){IntVariable = 0;}if(IntVariable < 10 && ShowDouble){ReturnString += "0";}ReturnString += IntVariable;return ReturnString;}
+	instanceProto.ConvertMinutes 		= function(Time, ShowDouble)	{var ReturnString = "";var IntVariable = parseInt( (Time/(60 * 1000))%60);if(IntVariable < 0 ){IntVariable = 0;}if(IntVariable < 10 && ShowDouble){ReturnString += "0";}ReturnString += IntVariable;return ReturnString;}
+	instanceProto.ConvertSeconds 		= function(Time, ShowDouble)	{var ReturnString = "";var IntVariable = parseInt( (Time/1000)%60);if(IntVariable < 0){IntVariable = 0;}if(IntVariable < 10 && ShowDouble){ReturnString += "0";}ReturnString += IntVariable;return ReturnString;}
+	instanceProto.ConvertMilliseconds	= function(Time, ShowDouble)	{var ReturnString = "";var IntVariable = parseInt( Time%1000);if(IntVariable < 0){IntVariable = 0;}if(IntVariable < 100){ReturnString += "0";}ReturnString += IntVariable;return ReturnString;}
+	instanceProto.GetHours			= function(Time, ShowDouble)	{var ReturnString = "";var IntVariable = parseInt( ((Time/(this.CurrentInstanceToUse.SecondBaseValue * 1000))/this.CurrentInstanceToUse.MinuteBaseValue)%this.CurrentInstanceToUse.MinuteBaseValue);if(IntVariable < 0){IntVariable = 0;}if(IntVariable < 10 && ShowDouble){ReturnString += "0";}ReturnString += IntVariable;return ReturnString;}
+	instanceProto.GetMinutes 		= function(Time, ShowDouble)	{var ReturnString = "";var IntVariable = parseInt( (Time/(this.CurrentInstanceToUse.SecondBaseValue * 1000))%this.CurrentInstanceToUse.MinuteBaseValue);if(IntVariable < 0 ){IntVariable = 0;}if(IntVariable < 10 && ShowDouble){ReturnString += "0";}ReturnString += IntVariable;return ReturnString;}
+	instanceProto.GetSeconds 		= function(Time, ShowDouble)	{var ReturnString = "";var IntVariable = parseInt( (Time/this.CurrentInstanceToUse.MillisecondBaseValue)%this.CurrentInstanceToUse.SecondBaseValue);if(IntVariable < 0){IntVariable = 0;}if(IntVariable < 10 && ShowDouble){ReturnString += "0";}ReturnString += IntVariable;return ReturnString;}
+	instanceProto.GetMilliseconds	= function(Time, ShowDouble)	{var ReturnString = "";var IntVariable = parseInt( Time%this.CurrentInstanceToUse.MillisecondBaseValue);if(IntVariable < 0){IntVariable = 0;}if(IntVariable < 100){ReturnString += "0";}ReturnString += IntVariable;return ReturnString;}
+	instanceProto.CalculateTime		= function(CurrentInstance)
+	{
+		if(CurrentInstance.IsStopped == true){CurrentInstance.PauseValue = 0;return;}
+		if(CurrentInstance.IsActive == false)
+		{
+			CurrentInstance.PauseValue	= (this.runtime.kahanTime.sum * 1000) - CurrentInstance.PauseStartValue;
+			return;
+		}
+		var CurrentTime = (this.runtime.kahanTime.sum * 1000) - CurrentInstance.PauseTotal;
+		if(CurrentInstance.CountDown == true)
+		{
+			CurrentInstance.TimeResult	= (CurrentInstance.TimeManagerEndTime) - CurrentTime;
+			if(CurrentInstance.TimeResult <= 0)
+			{
+				CurrentInstance.TimeResult = 0;
+			}
+		}
+		if(CurrentInstance.CountUp == true)
+		{
+			CurrentInstance.TimeResult = CurrentTime - CurrentInstance.TimeManagerStartTime;
+			if(CurrentInstance.TimeResult >= CurrentInstance.TimeManagerEndTime && CurrentInstance.TimeManagerEndTime != 0)
+			{
+				CurrentInstance.TimeResult = CurrentInstance.TimeManagerEndTime;
+			}
+		}
+		return;
+	}
+	instanceProto.GetInstance		= function(SearchString)		{this.CurrentInstanceToUse = null;for(var i = 0; i < this.m_TimeManagerList.length; i++){if(this.m_TimeManagerList[i].TimeManagerLabelName == SearchString){this.CurrentInstanceToUse = this.m_TimeManagerList[i];return;}}this.CurrentInstanceToUse = null;return;}
+	instanceProto.ResetTimeManager	= function(CurrentInstance)
+	{
+		if(CurrentInstance == null){return;}
+		if(CurrentInstance.CountDown == true)
+		{
+			var TempValue = CurrentInstance.TimeLimit;
+			CurrentInstance.TimeManagerStartTime = (this.runtime.kahanTime.sum * 1000) - CurrentInstance.TimeManagerExtraStartTime;
+			CurrentInstance.TimeManagerEndTime = (TempValue + CurrentInstance.TimeManagerStartTime);
+			CurrentInstance.TimeResult = TempValue;
+		}
+		if(CurrentInstance.CountUp == true && CurrentInstance.TimeManagerEndTime == 0)
+		{
+			CurrentInstance.TimeManagerStartTime 	= (this.runtime.kahanTime.sum * 1000)  - CurrentInstance.TimeManagerExtraStartTime;
+			CurrentInstance.TimeManagerEndTime = 0;
+			CurrentInstance.TimeResult = 0;
+		}
+		if(CurrentInstance.CountUp == true && CurrentInstance.TimeManagerEndTime != 0)
+		{
+			CurrentInstance.TimeManagerStartTime = (this.runtime.kahanTime.sum * 1000) - CurrentInstance.TimeManagerExtraStartTime;
+			CurrentInstance.TimeManagerEndTime = CurrentInstance.TimeLimit;
+			CurrentInstance.TimeResult = 0;
+		}
+		CurrentInstance.PauseValue = 0;
+		CurrentInstance.PauseTotal	= 0;
+		CurrentInstance.PauseStartValue	= (this.runtime.kahanTime.sum * 1000)  - CurrentInstance.TimeManagerExtraStartTime;
+	}
+	instanceProto.TimeManager 		= function(LabelStr, StartTime, EndTime, TimeLimit, ExtraStartTime)
+	{
+		this.TimeManagerLabelName		= LabelStr;
+		this.TimeManagerStartTime		= StartTime;
+		this.TimeManagerEndTime			= EndTime;
+		this.TimeManagerExtraStartTime	= ExtraStartTime;
+		this.CountDown					= false;
+		this.CountUp					= false;
+		this.IsActive					= true;
+		this.IsStopped					= false;
+		this.TimeResult					= 0.0;
+		this.TimeLimit					= TimeLimit;
+		this.PauseStartValue			= 0.0;
+		this.PauseValue					= 0.0;
+		this.PauseTotal					= 0.0;
+		this.MinuteBaseValue			= 60;
+		this.SecondBaseValue			= 60;
+		this.MillisecondBaseValue		= 1000;
+	}
+	pluginProto.cnds = {};
+	var cnds = pluginProto.cnds;
+	cnds.IsCounterRunning	= function(LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return false;}if(this.CurrentInstanceToUse.IsStopped == false){return true;}return false;}
+	cnds.IsCounterPaused	= function(LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return false;}if(this.CurrentInstanceToUse.IsActive == true){return false;}return true;}
+	cnds.IsCounterFinished 	= function (LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return false;}if(this.CurrentInstanceToUse.IsStopped == true || this.CurrentInstanceToUse.IsActive == false){return false;}this.CalculateTime(this.CurrentInstanceToUse);if(this.CurrentInstanceToUse.CountDown == true && this.CurrentInstanceToUse.TimeResult <= 0){return true;}if(this.CurrentInstanceToUse.CountUp == true && this.CurrentInstanceToUse.TimeManagerEndTime != 0){if(this.CurrentInstanceToUse.TimeResult >= this.CurrentInstanceToUse.TimeManagerEndTime){return true;}}return false;};
+	cnds.IsCounterStopped	= function(LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return false;} return this.CurrentInstanceToUse.IsStopped;}
+	cnds.CheckCounterValue	= function(LabelStr, CheckOption, Hours, Minutes, Seconds, Milliseconds)
+	{
+		this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return false;}
+		var TotalCheckValue = (Hours * 3600000) + (Minutes * 60000) + (Seconds * 1000) + Milliseconds;
+		this.CalculateTime(this.CurrentInstanceToUse)
+		switch(CheckOption)
+		{
+			case 0:
+				if(this.CurrentInstanceToUse.TimeResult < TotalCheckValue)
+				{
+					this.m_OldTotalCheckValue = TotalCheckValue;
+					return true;
+				}
+				break;
+			case 1:
+				if(this.CurrentInstanceToUse.TimeResult > TotalCheckValue)
+				{
+					this.m_OldTotalCheckValue = TotalCheckValue;
+					return true;
+				}
+				break;
+			case 2:
+				if(this.CurrentInstanceToUse.TimeResult != TotalCheckValue)
+				{
+					this.m_OldTotalCheckValue = TotalCheckValue;
+					return true;
+				}
+				break;
+			case 3:
+				if(this.CurrentInstanceToUse.TimeResult == TotalCheckValue)
+				{
+					this.m_OldTotalCheckValue = TotalCheckValue;
+					return true;
+				}
+				if(this.CurrentInstanceToUse.TimeResult > this.m_OldTotalCheckValue)
+				{
+					if(this.CurrentInstanceToUse.TimeResult > TotalCheckValue)
+					{
+						this.m_OldTotalCheckValue = TotalCheckValue;
+						return true;
+					}
+				}
+				break;
+			case 4:
+				if(this.CurrentInstanceToUse.TimeResult <= TotalCheckValue)
+				{
+					this.m_OldTotalCheckValue = TotalCheckValue;
+					return true;
+				}
+				break;
+			case 5:
+				if(this.CurrentInstanceToUse.TimeResult >= TotalCheckValue)
+				{
+					this.m_OldTotalCheckValue = TotalCheckValue;
+					return true;
+				}
+				break;
+		}
+		this.m_OldTotalCheckValue = TotalCheckValue;
+		return false;
+	}
+	pluginProto.acts = {};
+	var acts = pluginProto.acts;
+	acts.SetMinuteBaseValue				= function(LabelStr, BaseValue)						{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return;}this.CurrentInstanceToUse.MinuteBaseValue = BaseValue;}
+	acts.SetSecondBaseValue				= function(LabelStr, BaseValue)						{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return;}this.CurrentInstanceToUse.SecondBaseValue = BaseValue;}
+	acts.SetMillisecondBaseValue		= function(LabelStr, BaseValue)						{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return;}this.CurrentInstanceToUse.MillisecondBaseValue = BaseValue;}
+	acts.StopTimeCount					= function(LabelStr)								{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return;}this.ResetTimeManager(this.CurrentInstanceToUse);this.CurrentInstanceToUse.IsActive = true;this.CurrentInstanceToUse.IsStopped = true;return;}
+	acts.StartTimeCount					= function(LabelStr)								{this.CurrentInstanceToUse = null;this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return;}this.ResetTimeManager(this.CurrentInstanceToUse);this.CurrentInstanceToUse.IsActive = true;this.CurrentInstanceToUse.IsStopped = false;return;}
+	acts.DestroyTimeManagerInstances	= function()										{this.m_TimeManagerList.length = 0;return;}
+	acts.PauseTimeCount					= function(LabelStr, CurrentChoice)					{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return;}if(CurrentChoice == 0 && this.CurrentInstanceToUse.IsActive == true){this.CurrentInstanceToUse.IsActive = false;this.CurrentInstanceToUse.PauseStartValue	 = (this.runtime.kahanTime.sum * 1000);}else if(CurrentChoice == 1 && this.CurrentInstanceToUse.IsActive == false){this.CurrentInstanceToUse.IsActive = true;this.CurrentInstanceToUse.PauseTotal += this.CurrentInstanceToUse.PauseValue;}this.CurrentInstanceToUse.PauseValue	= 0.0;return;}
+	acts.ResetTimeCount					= function(LabelStr)								{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return;}this.ResetTimeManager(this.CurrentInstanceToUse);return;}
+	acts.TimeCountDown 					= function (CountdownTime, LabelStr, ActiveState)	{/*First I need to check if its already in the array. If its there, I delete and remove if from the array and re-add it to the array.*/for(var i = 0; i < this.m_TimeManagerList.length; i++){if(this.m_TimeManagerList[i].TimeManagerLabelName == LabelStr){this.m_TimeManagerList.splice (i, 1);break;}}var StartTime = (this.runtime.kahanTime.sum * 1000);var EndTime = (CountdownTime + StartTime);var TempTimeManager = new this.TimeManager(LabelStr, StartTime, EndTime, CountdownTime, 0.0);TempTimeManager.CountDown = true;TempTimeManager.IsStopped 	= ActiveState;this.ResetTimeManager(TempTimeManager);this.m_TimeManagerList.push(TempTimeManager);  return;};
+	acts.TimeCountUp 					= function (LabelStr, ActiveState)					{/*First I need to check if its already in the array. If its there, I delete and remove if from the array and re-add it to the array.*/for(var i = 0; i < this.m_TimeManagerList.length; i++){if(this.m_TimeManagerList[i].TimeManagerLabelName == LabelStr){this.m_TimeManagerList.splice (i, 1);break;}}var StartTime = (this.runtime.kahanTime.sum * 1000);var EndTime	= 0;var TempTimeManager = new this.TimeManager(LabelStr, StartTime, EndTime, 0.0, 0.0);TempTimeManager.CountUp	= true;TempTimeManager.IsStopped = ActiveState;this.ResetTimeManager(TempTimeManager);this.m_TimeManagerList.push(TempTimeManager);return;};
+	acts.TimeCountUpWithStartValue		= function (LabelStr, ActiveState, StartValue)		{/*First I need to check if its already in the array. If its there, I delete and remove if from the array and re-add it to the array.*/for(var i = 0; i < this.m_TimeManagerList.length; i++){if(this.m_TimeManagerList[i].TimeManagerLabelName == LabelStr){this.m_TimeManagerList.splice (i, 1);break;}}var StartTime = ((this.runtime.kahanTime.sum * 1000) - StartValue);var EndTime = 0;var TempTimeManager = new this.TimeManager(LabelStr, StartTime, EndTime, 0.0, StartValue);TempTimeManager.CountUp	= true;TempTimeManager.IsStopped = ActiveState;this.ResetTimeManager(TempTimeManager);this.m_TimeManagerList.push(TempTimeManager);return;};
+	acts.TimeCountUpWithLimit 			= function (TimeLimit, LabelStr, ActiveState)		{/*First I need to check if its already in the array. If its there, I delete and remove if from the array and re-add it to the array.*/for(var i = 0; i < this.m_TimeManagerList.length; i++){if(this.m_TimeManagerList[i].TimeManagerLabelName == LabelStr){this.m_TimeManagerList.splice (i, 1);break;}}var StartTime = (this.runtime.kahanTime.sum * 1000);var EndTime	= TimeLimit;var TempTimeManager = new this.TimeManager(LabelStr, StartTime, EndTime, TimeLimit, 0.0, 0.0);TempTimeManager.CountUp	= true;TempTimeManager.IsStopped = ActiveState;this.ResetTimeManager(TempTimeManager);this.m_TimeManagerList.push(TempTimeManager);return;};
+	acts.RemoveSingleCounter			= function (LabelStr)								{for(var i = 0; i < this.m_TimeManagerList.length; i++){if(this.m_TimeManagerList[i].TimeManagerLabelName == LabelStr){this.m_TimeManagerList.splice(i, 1);return;}}return;}
+	acts.CalculateTimeValue				= function (LabelStr, CalculationType, Value)
+	{
+		this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return;}
+		switch(CalculationType)
+		{
+			case 0: /* Addition */
+				if(this.CurrentInstanceToUse.CountDown == true)
+				{
+					this.CurrentInstanceToUse.TimeManagerEndTime += Value;
+				}
+				else
+				{
+					this.CurrentInstanceToUse.TimeManagerStartTime -= Value;
+				}
+				break;
+			case 1: /* Subtraction */
+				if(this.CurrentInstanceToUse.CountDown == true)
+				{
+					this.CurrentInstanceToUse.TimeManagerEndTime -= Value;
+				}
+				else
+				{
+					this.CurrentInstanceToUse.TimeManagerStartTime += Value;
+					this.CalculateTime(this.CurrentInstanceToUse);
+					if(this.CurrentInstanceToUse.TimeResult < 0)
+					{
+						this.ResetTimeManager(this.CurrentInstanceToUse);
+					}
+				}
+				break;
+			default:
+				break;
+		}
+	}
+	pluginProto.exps = {};
+	var exps = pluginProto.exps;
+	exps.HMSMM 					= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetHours(this.CurrentInstanceToUse.TimeResult, false) + ":" + this.GetMinutes(this.CurrentInstanceToUse.TimeResult, false) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, false) + ":" + this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.HMSSMM 				= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetHours(this.CurrentInstanceToUse.TimeResult, false) + ":" + this.GetMinutes(this.CurrentInstanceToUse.TimeResult, false) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.HMMSSMM 				= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetHours(this.CurrentInstanceToUse.TimeResult, false) + ":" + this.GetMinutes(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.HHMMSSMM 				= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetHours(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMinutes(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.HHMMSS 				= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetHours(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMinutes(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true);return ret.set_string(ReturnString);};
+	exps.MMSSMM 				= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetMinutes(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.SSMM 					= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.MMSS 					= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetMinutes(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true);return ret.set_string(ReturnString);};
+	exps.Seconds 				= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true);return ret.set_string(ReturnString);};
+	exps.SingleSeconds			= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetSeconds(this.CurrentInstanceToUse.TimeResult, false);return ret.set_string(ReturnString);};
+	exps.Milliseconds 			= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.GetTimeValue 			= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_int(0);}this.CalculateTime(this.CurrentInstanceToUse);var ReturnValue = this.CurrentInstanceToUse.TimeResult;return ret.set_int(ReturnValue);};
+	/* BACKWARD COMPABILITY EXPRESSIONS - DO NOT ADD NEW FUNCTIONS */
+	exps.GetStringHMSMTimeValue 	= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetHours(this.CurrentInstanceToUse.TimeResult, false) + ":" + this.GetMinutes(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.GetStringHMSTimeValue 		= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetHours(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMinutes(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true);return ret.set_string(ReturnString);};
+	exps.GetStringMSMTimeValue 		= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetMinutes(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.GetStringSMTimeValue 		= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.GetStringMSTimeValue 		= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetMinutes(this.CurrentInstanceToUse.TimeResult, true) + ":" + this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true);return ret.set_string(ReturnString);};
+	exps.GetStringSTimeValue 		= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetSeconds(this.CurrentInstanceToUse.TimeResult, true);return ret.set_string(ReturnString);};
+	exps.GetStringMTimeValue 		= function (ret, LabelStr)	{this.GetInstance(LabelStr);if(this.CurrentInstanceToUse == null){return ret.set_string("");}this.CalculateTime(this.CurrentInstanceToUse);var ReturnString = this.GetMilliseconds(this.CurrentInstanceToUse.TimeResult);return ret.set_string(ReturnString);};
+	exps.ConvertNumberToHHMMSSMM	= function (ret, TimeValue)	{var ReturnString = instanceProto.ConvertHours(TimeValue, true) + ":" + instanceProto.ConvertMinutes(TimeValue, true) + ":" + instanceProto.ConvertSeconds(TimeValue, true) + ":" + instanceProto.ConvertMilliseconds(TimeValue, true);ret.set_string(ReturnString);}
+	exps.ConvertNumberToHMMSSMM		= function (ret, TimeValue)	{var ReturnString = instanceProto.ConvertHours(TimeValue, false) + ":" + instanceProto.ConvertMinutes(TimeValue, true) + ":" + instanceProto.ConvertSeconds(TimeValue, true) + ":" + instanceProto.ConvertMilliseconds(TimeValue, true);ret.set_string(ReturnString);}
+	exps.ConvertNumberToHMSSMM		= function (ret, TimeValue)	{var ReturnString = instanceProto.ConvertHours(TimeValue, false) + ":" + instanceProto.ConvertMinutes(TimeValue, false) + ":" + instanceProto.ConvertSeconds(TimeValue, true) + ":" + instanceProto.ConvertMilliseconds(TimeValue, true);ret.set_string(ReturnString);}
+	exps.ConvertNumberToHMSMM		= function (ret, TimeValue)	{var ReturnString = instanceProto.ConvertHours(TimeValue, true) + ":" + instanceProto.ConvertMinutes(TimeValue, false) + ":" + instanceProto.ConvertSeconds(TimeValue, false) + ":" + instanceProto.ConvertMilliseconds(TimeValue, true);ret.set_string(ReturnString);}
+	exps.ConvertNumberToHHMMSS		= function (ret, TimeValue)	{var ReturnString = instanceProto.ConvertHours(TimeValue, true) + ":" + instanceProto.ConvertMinutes(TimeValue, true) + ":" + instanceProto.ConvertSeconds(TimeValue, true);ret.set_string(ReturnString);}
+	exps.ConvertNumberToHMMSS		= function (ret, TimeValue)	{var ReturnString = instanceProto.ConvertHours(TimeValue, false) + ":" + instanceProto.ConvertMinutes(TimeValue, true) + ":" + instanceProto.ConvertSeconds(TimeValue, true);ret.set_string(ReturnString);}
+	exps.ConvertNumberToHMSS		= function (ret, TimeValue)	{var ReturnString = instanceProto.ConvertHours(TimeValue, false) + ":" + instanceProto.ConvertMinutes(TimeValue, false) + ":" + instanceProto.ConvertSeconds(TimeValue, true);ret.set_string(ReturnString);}
+	exps.ConvertNumberToHMS			= function (ret, TimeValue)	{var ReturnString = instanceProto.ConvertHours(TimeValue, false) + ":" + instanceProto.ConvertMinutes(TimeValue, false) + ":" + instanceProto.ConvertSeconds(TimeValue, false);ret.set_string(ReturnString);}
+	exps.ConvertNumberToMMSSMM		= function (ret, TimeValue)	{var ReturnString = instanceProto.ConvertMinutes(TimeValue, true) + ":" + instanceProto.ConvertSeconds(TimeValue, true) + ":" + instanceProto.ConvertMilliseconds(TimeValue, true);ret.set_string(ReturnString);}
+}());
+;
+;
 cr.plugins_.DialogBox = function(runtime)
 {
 	this.runtime = runtime;
@@ -21488,6 +21769,798 @@ cr.plugins_.Mouse = function(runtime)
 		ret.set_float(this.mouseYcanvas);
 	};
 	pluginProto.exps = new Exps();
+}());
+;
+;
+cr.plugins_.Rex_TimeLine = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+    var TimerCacheKlass = function ()
+    {
+        this.lines = [];
+    };
+    var TimerCacheKlassProto = TimerCacheKlass.prototype;
+	TimerCacheKlassProto.alloc = function(timeline, on_timeout)
+	{
+        var timer;
+        if (this.lines.length > 0)
+        {
+            timer = this.lines.pop();
+			timeline.LinkTimer(timer);
+        }
+        else
+        {
+            timer = timeline.CreateTimer(on_timeout);
+        }
+		return timer;
+	};
+	TimerCacheKlassProto.free = function(timer)
+	{
+        timer.timeline = null;
+        this.lines.push(timer);
+	};
+	cr.plugins_.Rex_TimeLine.timerCache = new TimerCacheKlass();
+	var pluginProto = cr.plugins_.Rex_TimeLine.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+        this.updateMode = this.properties[0];
+        this.ManualMode = (this.updateMode === 0);
+        this.GameTimeMode = (this.updateMode === 1);
+        this.RealTimeMode = (this.updateMode === 2);
+        this.updateManually = this.ManualMode ;
+        this.updateWithGameTime = this.GameTimeMode;
+        this.updateWithRealTime = this.RealTimeMode;
+        if (this.RealTimeMode)
+        {
+            var timer = new Date();
+            this.lastRealTime = timer.getTime();
+        }
+        else
+        {
+            this.lastRealTime = null;
+        }
+        this.my_timescale = -1.0;
+        this.timeline = new cr.plugins_.Rex_TimeLine.TimeLine();
+        if (this.GameTimeMode || this.RealTimeMode)
+            this.runtime.tickMe(this);
+        this.check_name = "TIMELINE";
+        if (!this.recycled)
+        {
+            this.timers = {};
+        }
+        this.timerCache = cr.plugins_.Rex_TimeLine.timerCache;
+		this.exp_triggeredTimerName = "";
+        this.timersSave = null;
+        this.c2FnType = null;
+	};
+	instanceProto.onDestroy = function()
+	{
+        this.timeline.CleanAll();
+        var name;
+        for (name in this.timers)
+        {
+            this.destroyLocalTimer(name);
+        }
+	};
+    instanceProto.tick = function()
+    {
+        if (this.GameTimeMode)
+        {
+            if (this.updateWithGameTime)
+            {
+                var dt = this.runtime.getDt(this);
+                this.timeline.Dispatch(dt);
+            }
+        }
+        else if (this.RealTimeMode)
+        {
+            var timer = new Date();
+            var lastRealTime = timer.getTime();
+            if (this.updateWithRealTime)
+            {
+                var dt = (lastRealTime - this.lastRealTime)/1000;
+                this.timeline.Dispatch(dt);
+            }
+            this.lastRealTime = lastRealTime;
+        }
+    };
+    instanceProto.CreateTimer = function(on_timeout)
+    {
+        var timer = new cr.plugins_.Rex_TimeLine.Timer(this.timeline);
+        timer.TimeoutHandlerSet(on_timeout);  // hang OnTimeout function
+        return timer;
+    };
+    instanceProto.LinkTimer = function(timer)
+    {
+        timer.Reset(this.timeline)
+        return timer;
+    };
+	instanceProto.LoadTimer = function (load_info, on_timeout)
+	{
+        var timer = this.CreateTimer(on_timeout);
+        timer.loadFromJSON(load_info);
+        timer.afterLoad();
+        return timer;
+	};
+	instanceProto.getC2FnType = function (raise_assert_when_not_fnobj_avaiable)
+	{
+        if (this.c2FnType === null)
+        {
+            if (window["c2_callRexFunction2"])
+                this.c2FnType = "c2_callRexFunction2";
+            else if (window["c2_callFunction"])
+                this.c2FnType = "c2_callFunction";
+            else
+            {
+                if (raise_assert_when_not_fnobj_avaiable)
+;
+                this.c2FnType = "";
+            }
+        }
+        return this.c2FnType;
+	};
+    instanceProto.RunCallback = function(c2FnName, c2FnParms, raise_assert_when_not_fnobj_avaiable)
+    {
+        var c2FnGlobalName = this.getC2FnType(raise_assert_when_not_fnobj_avaiable);
+        if (c2FnGlobalName === "")
+            return null;
+        var retValue = window[c2FnGlobalName](c2FnName, c2FnParms);
+        return retValue;
+    };
+    instanceProto.TimeGet = function()
+    {
+        return this.timeline.absTime;
+    };
+	instanceProto.create_local_timer = function(timer_name)
+	{
+        var timer = this.timers[timer_name];
+        if (timer != null)  // timer exist
+        {
+            timer.Remove();
+        }
+        else      // get timer from timer cache
+        {
+            timer = this.timerCache.alloc(this, on_timeout);
+            timer.plugin = this;
+            this.timers[timer_name] = timer;
+        }
+        return timer;
+	};
+	instanceProto.destroyLocalTimer = function(timer_name)
+	{
+        var timer = this.timers[timer_name];
+        if (timer == null)
+            return;
+        timer.Remove();
+        delete this.timers[timer_name];
+        this.timerCache.free(timer);
+	};
+	instanceProto.timer_cache_clean = function()
+	{
+        this.timerCache.lines.length = 0;
+	};
+    var on_timeout = function ()
+    {
+        var plugin = this.plugin;
+        plugin.exp_triggeredTimerName = this._cb.name;
+        var name = this._cb.command;
+        var params = this._cb.params;
+        plugin.RunCallback(name, params, true);
+        if (this._repeat_count === 0)
+            this.Start();
+        else if (this._repeat_count > 1)
+        {
+            this._repeat_count -= 1;
+            this.Start();
+        }
+    };
+    instanceProto._get_timer_cb_params = function(timer_name)
+    {
+        var params = {
+            name:timer_name,
+            command:"",
+            params:[]
+            };
+        return params;
+    };   // fix me
+	instanceProto.saveToJSON = function ()
+	{
+        var name, timer, timersSave = {};
+        for (name in this.timers)
+        {
+            timer = this.timers[name];
+            timersSave[name] = {"tim": timer.saveToJSON(),
+                                "cmd": timer._cb.command,
+                                "pams": timer._cb.params,
+                                "rc": timer._repeat_count,
+                                };
+        }
+		return { "ts": this.my_timescale,
+                 "ug": this.updateWithGameTime,
+                 "tl": this.timeline.saveToJSON(),
+                 "timers": timersSave,
+                 "lrt": this.lastRealTime,
+                 "ft": this.c2FnType,
+                 };
+	};
+	instanceProto.loadFromJSON = function (o)
+	{
+        this.my_timescale = o["ts"];
+        this.timeline.loadFromJSON(o["tl"]);
+        this.timersSave = o["timers"];
+        this.lastRealTime = o["lrt"];
+        this.c2FnType = o["ft"];
+        this.onDestroy();
+        this.timer_cache_clean();
+	};
+	instanceProto.afterLoad = function ()
+	{
+        var name, timer_info, timer;
+        for (name in this.timersSave)
+        {
+            timer_info = this.timersSave[name];
+            timer = this.LoadTimer(timer_info["tim"], on_timeout);
+            timer.plugin = this;
+            timer._cb = this._get_timer_cb_params(name);
+            timer._cb.command = timer_info["cmd"];
+            timer._cb.params = timer_info["pams"];
+            timer._repeat_count = timer_info["rc"];
+        }
+        this.timersSave = null;
+	};
+	function Cnds() {};
+	pluginProto.cnds = new Cnds();
+	Cnds.prototype.IsRunning = function (timer_name)
+	{
+        var timer = this.timers[timer_name];
+		return (timer)? timer.IsActive(): false;
+	};
+	function Acts() {};
+	pluginProto.acts = new Acts();
+    Acts.prototype.PushTimeLine = function (deltaTime)
+	{
+        if (!this.updateManually)
+            return;
+        this.timeline.Dispatch(deltaTime);
+	};
+    Acts.prototype.Setup_deprecated = function () { };
+    Acts.prototype.CreateTimer_deprecated = function () { };
+    Acts.prototype.StartTimer = function (timer_name, delayTime, repeat_count)
+	{
+        var timer = this.timers[timer_name];
+        if (timer)
+        {
+            timer._repeat_count = repeat_count;
+            timer.Start(delayTime);
+        }
+	};
+    Acts.prototype.StartTrgTimer = function (delayTime)
+	{
+	    var timer_name = this.exp_triggeredTimerName;
+		var timer = this.timers[timer_name];
+        if (timer)
+            timer.Start(delayTime);
+	};
+    Acts.prototype.PauseTimer = function (timer_name)
+	{
+        var timer = this.timers[timer_name];
+        if (timer)
+            timer.Suspend();
+	};
+    Acts.prototype.ResumeTimer = function (timer_name)
+	{
+        var timer = this.timers[timer_name];
+        if (timer)
+            timer.Resume();
+	};
+    Acts.prototype.StopTimer = function (timer_name)
+	{
+        var timer = this.timers[timer_name];
+        if (timer)
+            timer.Remove();
+	};
+    Acts.prototype.CleanTimeLine = function ()
+	{
+        this.timeline.CleanAll();
+	};
+    Acts.prototype.DeleteTimer = function (timer_name)
+	{
+	    this.destroyLocalTimer(timer_name);
+	};
+    Acts.prototype.SetTimerParameter = function (timer_name, index, value)
+	{
+	    var timer = this.timers[timer_name];
+	    if (timer)
+	    {
+	        timer._cb.params[index] = value;
+	    }
+	};
+    Acts.prototype.PauseTimeLine = function ()
+	{
+        if (this.GameTimeMode)
+	        this.updateWithGameTime = false;
+        else if (this.RealTimeMode)
+            this.updateWithRealTime = false;
+	};
+    Acts.prototype.ResumeTimeLine = function ()
+	{
+        if (this.GameTimeMode)
+	        this.updateWithGameTime = true;
+        else if (this.RealTimeMode)
+            this.updateWithRealTime = true;
+	};
+    Acts.prototype.CreateTimer = function (timer_name, callback_name, callback_params)
+	{
+        var timer = this.create_local_timer(timer_name);
+        timer._cb = this._get_timer_cb_params(timer_name);
+        timer._cb.command = callback_name;
+        cr.shallowAssignArray(timer._cb.params, callback_params);
+	};
+    Acts.prototype.SetTimerParameters = function (timer_name, callback_params)
+	{
+	    var timer = this.timers[timer_name];
+		if (timer)
+		{
+		    cr.shallowAssignArray(timer._cb.params, callback_params);
+		}
+	};
+    Acts.prototype.SetTrgTimerParameters = function (callback_params)
+	{
+	    var timer_name = this.exp_triggeredTimerName;
+	    var timer = this.timers[timer_name];
+		if (timer)
+		{
+		    cr.shallowAssignArray(timer._cb.params, callback_params);
+		}
+	};
+    Acts.prototype.DeleteTrgTimer = function ()
+	{
+	    this.destroyLocalTimer(this.exp_triggeredTimerName);
+	};
+    Acts.prototype.PushTimeLineTo = function (t)
+	{
+        if (!this.updateManually)
+            return;
+        var deltaTime = t - this.timeline.absTime;
+        if (deltaTime < 0)
+            return;
+        this.timeline.Dispatch(deltaTime);
+	};
+    Acts.prototype.SetupCallback = function (callbackType)
+	{
+        this.c2FnType = (callbackType===0)? "c2_callFunction" : "c2_callRexFunction2";
+	};
+	function Exps() {};
+	pluginProto.exps = new Exps();
+	Exps.prototype.TimerRemainder = function (ret, timer_name)
+	{
+        var timer = this.timers[timer_name];
+        var t = (timer)? timer.RemainderTimeGet():0;
+	    ret.set_float(t);
+	};
+	Exps.prototype.TimerElapsed = function (ret, timer_name)
+	{
+        var timer = this.timers[timer_name];
+        var t = (timer)? timer.ElapsedTimeGet():0;
+	    ret.set_float(t);
+	};
+	Exps.prototype.TimerRemainderPercent = function (ret, timer_name)
+	{
+        var timer = this.timers[timer_name];
+        var t = (timer)? timer.RemainderTimePercentGet():0;
+	    ret.set_float(t);
+	};
+	Exps.prototype.TimerElapsedPercent = function (ret, timer_name)
+	{
+        var timer = this.timers[timer_name];
+        var t = (timer)? timer.ElapsedTimePercentGet():0;
+	    ret.set_float(t);
+	};
+	Exps.prototype.TimeLineTime = function (ret)
+	{
+	    ret.set_float(this.timeline.absTime);
+	};
+	Exps.prototype.TriggeredTimerName = function (ret)
+	{
+	    ret.set_string(this.exp_triggeredTimerName);
+	};
+	Exps.prototype.TimerDelayTime = function (ret)
+	{
+        var timer = this.timers[timer_name];
+        var t = (timer)? timer.DelayTimeGet():0;
+	    ret.set_float(t);
+	};
+}());
+(function ()
+{
+    cr.plugins_.Rex_TimeLine.TimeLine = function()
+    {
+        this.CleanAll();
+    };
+    var TimeLineProto = cr.plugins_.Rex_TimeLine.TimeLine.prototype;
+    var _TIMERQUEUE_SORT = function(timerA, timerB)
+    {
+        var ta = timerA.absTime;
+        var tb = timerB.absTime;
+        return (ta < tb) ? -1 : (ta > tb) ? 1 : 0;
+    }
+    TimeLineProto.CleanAll = function()
+	{
+        this.triggered_timer = null;
+        this.absTime = 0;
+        this._timer_absTime = 0;
+        this._waitingTimerQueue = [];
+        this._processTimerQueue = [];
+        this._suspendTimerQueue = [];
+        this._activateQueue = [this._waitingTimerQueue, this._processTimerQueue];
+        this._allQueues = [this._waitingTimerQueue, this._processTimerQueue, this._suspendTimerQueue];
+	};
+	TimeLineProto.CurrentTimeGet = function()
+	{
+        return this._timer_absTime;
+	};
+	TimeLineProto.RegistTimer = function(timer)
+	{
+        this._add_timer_to_activate_lists(timer);
+	};
+    TimeLineProto.RemoveTimer = function(timer)
+    {
+        this._removeTimerFromQueues(timer, false);  //activate_only=False
+        timer._idle();
+    };
+    TimeLineProto.Dispatch = function(deltaTime)
+    {
+        this.absTime += deltaTime;
+        this._waitingTimerQueue.sort(_TIMERQUEUE_SORT);
+        var quene_length = this._waitingTimerQueue.length;
+        var i, timer;
+        var timerCnt = 0;
+        for (i=0; i<quene_length; i++)
+        {
+            timer = this._waitingTimerQueue[i];
+            if (this._is_timer_time_out(timer))
+            {
+                this._processTimerQueue.push(timer);
+                timerCnt += 1;
+            }
+        }
+        if (timerCnt)
+        {
+            for(i=timerCnt; i<quene_length; i++)
+            {
+                this._waitingTimerQueue[i-timerCnt] = this._waitingTimerQueue[i];
+            }
+            this._waitingTimerQueue.length -= timerCnt;
+        }
+        while (this._processTimerQueue.length > 0)
+        {
+            this._processTimerQueue.sort(_TIMERQUEUE_SORT);
+            this.triggered_timer = this._processTimerQueue.shift();
+            this._timer_absTime = this.triggered_timer.absTime;
+            this.triggered_timer.DoHandle();
+        }
+        this._timer_absTime = this.absTime;
+    };
+    TimeLineProto.SuspendTimer = function(timer)
+    {
+        var is_success = this._removeTimerFromQueues(timer, true); //activate_only=True
+        if (is_success)
+        {
+            this._suspendTimerQueue.push(timer);
+            timer.__suspend__();
+        }
+        return is_success;
+    };
+    TimeLineProto.ResumeTimer = function(timer)
+    {
+        var is_success = false;
+        var itemIndex = this._suspendTimerQueue.indexOf(timer);
+        if (itemIndex != (-1))
+        {
+            cr.arrayRemove(this._suspendTimerQueue, itemIndex);
+            timer.__resume__();
+            this.RegistTimer(timer);
+            is_success = true;
+        }
+        return is_success;
+    };
+    TimeLineProto.SetTimescale = function(timer, timescale)
+    {
+        timer.__setTimescale__(timescale);
+        var is_success = this._removeTimerFromQueues(timer, true);  //activate_only=True
+        if (is_success)
+        {
+            this.RegistTimer(timer);
+        }
+        return is_success;
+    };
+    TimeLineProto.ChangeTimerRate = function(timer, rate)
+    {
+        timer.__changeRate__(rate);
+        var is_success = this._removeTimerFromQueues(timer, true);  //activate_only=True
+        if (is_success)
+        {
+            this.RegistTimer(timer);
+        }
+        return is_success;
+    };
+	TimeLineProto.saveToJSON = function ()
+	{
+		return { "at": this.absTime };
+	};
+	TimeLineProto.loadFromJSON = function (o)
+	{
+		this.absTime = o["at"];
+	};
+    TimeLineProto._is_timer_time_out = function(timer)
+    {
+        return (timer.absTime <= this.absTime);
+    };
+    TimeLineProto._add_timer_to_activate_lists = function(timer)
+    {
+        var queue = ( this._is_timer_time_out(timer) )?
+                    this._processTimerQueue : this._waitingTimerQueue;
+        queue.push(timer);
+    };
+    TimeLineProto._removeTimerFromQueues = function(timer, activate_only)
+    {
+        var is_success = false;
+        var timer_lists = (activate_only)? this._activateQueue : this._allQueues;
+        var i;
+        var lists_length = timer_lists.length;
+        var timer_queue, itemIndex;
+        for(i=0; i<lists_length; i++)
+        {
+            timer_queue = timer_lists[i];
+            itemIndex = timer_queue.indexOf(timer);
+            if (itemIndex!= (-1))
+            {
+                cr.arrayRemove(timer_queue, itemIndex);
+                is_success = true;
+                break;
+            }
+        }
+        return is_success;
+    };
+    cr.plugins_.Rex_TimeLine.Timer = function(timeline)
+    {
+		this.Reset(timeline);
+        this.extra = {};
+    };
+    var TimerProto = cr.plugins_.Rex_TimeLine.Timer.prototype;
+    TimerProto.Reset = function(timeline)
+    {
+        this.timeline = timeline;
+        this.delayTime = 0; //delayTime
+        this._remainderTime = 0;
+        this.absTime = 0;
+        this.timescale = 1;
+        this._idle();
+        this._setAbsTimeout(0); // delayTime
+    };
+    TimerProto.Restart = function(delayTime)
+    {
+        if (delayTime != null)  // assign new delay time
+        {
+            this.delayTime = delayTime;
+        }
+        var t = this.delayTime / this.timescale;
+        this._setAbsTimeout(t);
+        if (this._isAlive)
+        {
+            if (!this._isActive)
+            {
+                this._remainderTime = this.absTime;
+                this.Resume(); // update timer in TimeLineMgr
+            }
+        }
+        else
+        {
+            this.timeline.RegistTimer(this);
+            this._run();
+        }
+    };
+    TimerProto.Start = TimerProto.Restart;
+    TimerProto.Suspend = function()
+    {
+        this.timeline.SuspendTimer(this);
+    };
+    TimerProto.Resume = function()
+    {
+        this.timeline.ResumeTimer(this);
+    };
+    TimerProto.SetTimescale = function(timescale)
+    {
+        if (this._isActive && (timescale === this.timescale))
+            return;
+        this.timeline.SetTimescale(this, timescale);
+    };
+    TimerProto.ChangeRate = function(rate)
+    {
+        this.timeline.ChangeTimerRate(this, rate);
+    };
+    TimerProto.Remove = function()
+    {
+        if (this._isAlive)
+            this.timeline.RemoveTimer(this);
+    };
+    TimerProto.IsAlive = function()
+    {
+        return this._isAlive;
+    };
+    TimerProto.IsActive = function()
+    {
+        return (this._isAlive && this._isActive);
+    };
+    TimerProto.RemainderTimeGet = function(ignoreTimeScale)
+    {
+        var remainderTime;
+        if (this.IsActive())       // -> run
+            remainderTime = this.absTime - this.timeline.CurrentTimeGet();
+        else if (this.IsAlive())   // (!this.IsActive() && this.IsAlive()) -> suspend
+            remainderTime = this._remainderTime;
+        else
+            remainderTime = 0;
+        if (!ignoreTimeScale)
+        {
+            if ((this.timescale !== 0) || (this.timescale !== 1))
+                remainderTime *= this.timescale;
+        }
+        return remainderTime;
+    };
+    TimerProto.RemainderTimeSet = function(remainderTime)
+    {
+        if (!this.IsAlive())
+            return;
+        var delayTime = this.delayTime;
+        if ((this.timescale !== 0) || (this.timescale !== 1))
+            delayTime /= this.timescale;
+        this._remainderTime = cr.clamp(remainderTime, 0, delayTime);
+        this.absTime = this.timeline.CurrentTimeGet() + this._remainderTime;
+    };
+    TimerProto.ElapsedTimeGet = function()
+    {
+        return (this.delayTime - this.RemainderTimeGet());
+    };
+    TimerProto.RemainderTimePercentGet = function()
+    {
+        return (this.delayTime == 0)? 0:
+               (this.RemainderTimeGet() / this.delayTime);
+    };
+    TimerProto.ElapsedTimePercentGet = function()
+    {
+        return (this.delayTime == 0)? 0:
+               (this.ElapsedTimeGet() / this.delayTime);
+    };
+    TimerProto.ExpiredTimeGet = function()
+    {
+        return (this.timeline.absTime - this.absTime);
+    };
+    TimerProto.DelayTimeGet = function()
+    {
+        return this.delayTime;
+    };
+    TimerProto.TimeoutHandlerSet = function(handler)
+    {
+        this.OnTimeout = handler;
+    };
+    TimerProto.DoHandle = function()
+    {
+        this._idle();
+        if (this.OnTimeout)
+            this.OnTimeout();
+    };
+	TimerProto.saveToJSON = function ()
+	{
+	    var remainderTime = this.RemainderTimeGet(true);
+		return { "dt": this.delayTime,
+                 "rt": remainderTime,
+                 "ts": this.timescale,
+                 "alive": this._isAlive,
+                 "active": this._isActive,
+                 "ex": this.extra
+                 };
+	};
+	TimerProto.loadFromJSON = function (o)
+	{
+        this.delayTime = o["dt"];
+        this._isAlive = o["alive"];
+        this._isActive = o["active"];
+        this.timescale = o["ts"];    // compaticable
+        this.extra = o["ex"];
+        this.RemainderTimeSet(o["rt"]);  // set remaind_time and absTime
+	};
+	TimerProto.afterLoad = function ()
+	{
+        if (this.IsAlive())
+        {
+            this.timeline.RegistTimer(this);
+            if (!this.IsActive())
+            {
+                this.timeline.SuspendTimer(this);
+            }
+        }
+	};
+    TimerProto._idle = function()
+    {
+        this._isAlive = false;   // start, stop
+        this._isActive = false;  // suspend, resume
+    };
+    TimerProto._run = function()
+    {
+        this._isAlive = true;
+        this._isActive = true;
+    };
+    TimerProto._setAbsTimeout = function(deltaTime)
+    {
+        this.absTime = this.timeline.CurrentTimeGet() + deltaTime;
+    };
+    TimerProto.__suspend__ = function()
+    {
+        this._remainderTime = this.absTime - this.timeline.CurrentTimeGet();
+        this._isActive = false;
+    };
+    TimerProto.__resume__ = function()
+    {
+        this._setAbsTimeout(this._remainderTime);
+        this._isActive = true;
+    };
+    TimerProto.__setTimescale__ = function(timescale)
+    {
+        if (timescale < 0)   // invalid
+            return;
+        var reset_rate = false;
+        if ((timescale == 0) && this._isActive) // suspend
+        {
+            this.Suspend();
+        }
+        else if ((timescale > 0) && (!this._isActive)) // resume
+        {
+            this.Resume();
+            reset_rate = true;
+        }
+        else if ((timescale > 0) && this._isActive) // this._isActive, normal
+        {
+            reset_rate = true;
+        }
+        if (reset_rate)
+        {
+            var rate = this.timescale / timescale;
+            this.__changeRate__(rate);
+            this.timescale = timescale;
+        }
+    };
+    TimerProto.__changeRate__ = function(rate)
+    {
+        if (this._isActive)
+        {
+            var absTime = this.timeline.CurrentTimeGet();
+            var remainderTime = this.absTime - absTime;
+            this.absTime = absTime + (remainderTime*rate);
+        }
+        else
+        {
+            this._remainderTime *= rate;
+        }
+    };
 }());
 ;
 ;
@@ -28441,6 +29514,510 @@ cr.plugins_.Touch = function(runtime)
 }());
 ;
 ;
+cr.plugins_.drawsprite = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.drawsprite.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+                this.parsestring = "";
+	};
+	instanceProto.draw = function(ctx)
+	{
+	};
+	instanceProto.drawGL = function (glw)
+	{
+	};
+	pluginProto.cnds = {};
+	var cnds = pluginProto.cnds;
+	pluginProto.acts = {};
+	var acts = pluginProto.acts;
+        acts.draw_sprite_maze = function (obj, layer, gridx, gridy , myrow, mycol, xpos, ypos, owidth, oheight, pestring)
+	{
+                var GRIDx = gridx;
+                var GRIDy = gridy;
+                var ROWS = myrow;
+                var COLS = mycol;
+                var Maze;
+                var Stack;
+                var mywidth = obj.instances[0].width;
+                var myheight = obj.instances[0].height;
+                var i, j, r, c, d, k, dir1;
+                var a = 0;
+                var startx = Math.floor(mywidth*obj.instances[0].hotspotX)+xpos;
+                var starty = Math.floor(myheight*obj.instances[0].hotspotY)+ypos;
+                var stackpos = 0;
+                var curx = 0;
+                var cury = 0;
+                var visited = 1;
+                var direction = 0;
+                var move = [[ 0, 1], [ 0, -1], [ 1, 0], [ -1, 0]];
+                var next = [[ 0, 0], [ 0, 0], [ 0, 0], [ 0, 0]];
+                var mystring = pestring;
+                var temp = mystring.split(",");
+                if ( owidth > 0 )
+                {
+                    mywidth = owidth;
+                }
+                if ( oheight > 0 )
+                {
+                    myheight = oheight;
+                }
+                Maze = new Array(ROWS);
+                for (i = 0; i < ROWS; i++)
+	            Maze[i] = new Array(COLS);
+                for (i = 0; i < ROWS; i++)
+                    for (j = 0; j < COLS; j++)
+                        Maze[i][j] = parseInt("15");
+                Stack = new Array(ROWS*COLS);
+                for (i = 0; i < ROWS*COLS; i++)
+                    Stack[i] = new Array(2);
+                for (i = 0; i < ROWS*COLS; i++)
+                    for (j = 0; j < 2; j++)
+                        Stack[i][j] = parseInt("0");
+                curx = Math.floor((Math.random()*(43541)))%ROWS;
+                cury = Math.floor((Math.random()*(43481
+)))%COLS;
+                while ( visited < (ROWS*COLS) )
+                {
+                    j = 0;
+                    for (i = 0; i < 4; i++)
+                    {
+                        r = curx + move[i][0];
+                        c = cury + move[i][1];
+                        if ( r >= 0 && c >= 0 && r < ROWS && c < COLS )
+                        {
+                            if ( Maze[r][c] == 15 )
+                            {
+                                next[j][0] = move[i][0];
+                                next[j][1] = move[i][1];
+                                j++;
+                            }
+                        }
+                    }
+                    if ( j > 0 )
+                    {
+                        stackpos++;
+                        Stack[stackpos][0] = curx;
+                        Stack[stackpos][1] = cury;
+                        i = Math.floor((Math.random()*(7919)))%j;
+                        if ( next[i][0] == -1 )
+                        {
+                            Maze[curx][cury] -= 8;
+                            curx--;
+                            Maze[curx][cury] -= 2;
+                        }
+                        if ( next[i][0] == 1 )
+                        {
+                            Maze[curx][cury] -= 2;
+                            curx++;
+                            Maze[curx][cury] -= 8;
+                        }
+                        if ( next[i][1] == -1 )
+                        {
+                            Maze[curx][cury] -= 1;
+                            cury--;
+                            Maze[curx][cury] -= 4;
+                        }
+                        if ( next[i][1] == 1 )
+                        {
+                            Maze[curx][cury] -= 4;
+                            cury++;
+                            Maze[curx][cury] -= 1;
+                        }
+                        visited++;
+                    }
+                    else
+                    {
+                        curx = Stack[stackpos][0];
+                        cury = Stack[stackpos][1];
+                        stackpos--;
+                    }
+                }
+                while ( a < temp.length )
+                {
+                    if ( temp[a] < ROWS && temp[a+1] < COLS )
+                    {
+                        Maze[parseInt(temp[a])][parseInt(temp[a+1])] -= parseInt(temp[a+2]);
+                    }
+                    a = a + 3;
+                }
+                for (i = 0; i < ROWS; i++)
+                    for (j = 0; j < COLS; j++)
+                    {
+                        dir1 = 0;
+                        if ( (Maze[i][j] & parseInt("1")) == 1 )
+                        {
+                            dir1 = 1;
+                            for (k = 0; k < GRIDx; k++)
+                            {
+                                this.runtime.createInstance(obj, layer, startx+(i*mywidth*GRIDx)+(mywidth*k), starty+(j*myheight*GRIDy));
+                            }
+                        }
+                        if ( (Maze[i][j] & parseInt("8")) == 8 )
+                        {
+                            if ( j < (COLS-1) )
+                            {
+                                if ( (Maze[i][j+1] & parseInt("1")) != 1 && (Maze[i][j+1] & parseInt("8")) != 8 )
+                                {
+                                    this.runtime.createInstance(obj, layer, startx+(i*mywidth*GRIDx), starty+(j*myheight*GRIDy)+(myheight*GRIDy));
+                                }
+                            }
+                            for (k = 0; k < GRIDy; k++)
+                            {
+                                if ( dir1 == 0 )
+                                {
+                                    this.runtime.createInstance(obj, layer, startx+(i*mywidth*GRIDx), starty+(j*myheight*GRIDy)+(myheight*k));
+                                }
+                                if ( k == 0 )
+                                {
+                                    dir1 = 0;
+                                }
+                            }
+                        }
+                        if ( (Maze[i][j] & parseInt("4")) == 4 && j == (COLS-1) )
+                        {
+                            for (k = 0; k < GRIDx; k++)
+                            {
+                                this.runtime.createInstance(obj, layer, startx+(i*mywidth*GRIDx)+(mywidth*k), starty+(j*myheight*GRIDy)+(myheight*(GRIDy)));
+                            }
+                        }
+                        if ( (Maze[i][j] & parseInt("2")) == 2 && i == (ROWS-1) )
+                        {
+                            for (k = 0; k < GRIDy; k++)
+                            {
+                                this.runtime.createInstance(obj, layer, startx+(i*mywidth*GRIDx)+(mywidth*(GRIDx)), starty+(j*myheight*GRIDy)+(myheight*k));
+                            }
+                            if ( j == (COLS-1) )
+                            {
+                                this.runtime.createInstance(obj, layer, startx+(i*mywidth*GRIDx)+(mywidth*(GRIDx)), starty+(j*myheight*GRIDy)+(myheight*k));
+                            }
+                        }
+                    }
+	};
+        acts.draw_sprite_path = function (obj, layer, ostring, owidth, oheight)
+	{
+                var myx = 0;
+                var myy = 0;
+                var myx2 = 0;
+                var myy2 = 0;
+                var myloop = -1;
+                var a = 2;
+                var temp = new Array();
+                var mystring = ostring;
+                temp = mystring.split(",");
+                var mywidth = obj.instances[0].width;
+                var myheight = obj.instances[0].height;
+                if ( owidth > 0 )
+                {
+                    mywidth = owidth;
+                }
+                if ( oheight > 0 )
+                {
+                    myheight = oheight;
+                }
+                myx = parseInt(temp[0]);
+                myy = parseInt(temp[1]);
+		while ( a < temp.length )
+                {
+                    if ( temp[a].toLowerCase()  == "r" )
+                    {
+                        while ( myloop < parseInt(temp[a+1]) )
+                        {
+                            this.runtime.createInstance(obj, layer,myx+((myloop+1)*mywidth),myy);
+                            myx2 = myx+((myloop+1)*mywidth);
+                            myy2 = myy;
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a].toLowerCase() == "l" )
+                    {
+                        while ( myloop < parseInt(temp[a+1]) )
+                        {
+                            this.runtime.createInstance(obj, layer,myx-((myloop+1)*mywidth),myy);
+                            myx2 = myx-((myloop+1)*mywidth);
+                            myy2 = myy;
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a].toLowerCase() == "u" )
+                    {
+                        while ( myloop < parseInt(temp[a+1]) )
+                        {
+                            this.runtime.createInstance(obj, layer,myx,myy-((myloop+1)*myheight));
+                            myx2 = myx;
+                            myy2 = myy-((myloop+1)*myheight)
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a].toLowerCase() == "d" )
+                    {
+                        while ( myloop < parseInt(temp[a+1]) )
+                        {
+                            this.runtime.createInstance(obj, layer,myx,myy+((myloop+1)*myheight));
+                            myx2 = myx;
+                            myy2 = myy+((myloop+1)*myheight);
+                            ++myloop;
+                        }
+                    }
+                    myx = myx2;
+                    myy = myy2;
+                    a = a + 2;
+                    myloop = 0;
+                }
+	};
+        acts.draw_sprite = function (obj, layer, ostring, owidth, oheight)
+	{
+                var myloop = 0;
+                var a = 0;
+                var temp = new Array();
+                var mystring = ostring.toString();
+                temp = mystring.split(",");
+                var mywidth = obj.instances[0].width;
+                var myheight = obj.instances[0].height;
+                if ( owidth > 0 )
+                {
+                    mywidth = owidth;
+                }
+                if ( oheight > 0 )
+                {
+                    myheight = oheight;
+                }
+		while ( a < temp.length )
+                {
+                    this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1]));
+                    myloop = 1;
+                    if ( temp[a+2].toLowerCase()  == "dul" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])-(myloop*mywidth),parseInt(temp[a+1])-(myloop*myheight));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase()  == "dur" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])+(myloop*mywidth),parseInt(temp[a+1])-(myloop*myheight));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase()  == "dll" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])-(myloop*mywidth),parseInt(temp[a+1])+(myloop*myheight));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase()  == "dlr" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])+(myloop*mywidth),parseInt(temp[a+1])+(myloop*myheight));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase()  == "ulc" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])+(myloop*mywidth),parseInt(temp[a+1]));
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1])+(myloop*myheight));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase() == "urc" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])-(myloop*mywidth),parseInt(temp[a+1]));
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1])+(myloop*myheight));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase()  == "llc" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])+(myloop*mywidth),parseInt(temp[a+1]));
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1])-(myloop*myheight));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase() == "lrc" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])-(myloop*mywidth),parseInt(temp[a+1]));
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1])-(myloop*myheight));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase()  == "r" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])+(myloop*mywidth),parseInt(temp[a+1]));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase() == "l" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])-(myloop*mywidth),parseInt(temp[a+1]));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase() == "u" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1])-(myloop*myheight));
+                            ++myloop;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase() == "d" )
+                    {
+                        while ( myloop < parseInt(temp[a+3]) )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1])+(myloop*myheight));
+                            ++myloop;
+                        }
+                    }
+                    a = a + 4;
+                }
+	};
+        acts.draw_sprite2 = function (obj, obj2, layer, ostring, owidth, oheight, owidth2, oheight2)
+	{
+                var mypos = 0;
+                var mylength = 0;
+                var mywidth = 0;
+                var myheight = 0;
+                var mywidth2 = 0;
+                var myheight2 = 0;
+                var myloop = 0;
+                var a = 0;
+                var temp = new Array();
+                var mystring = ostring;
+                temp = mystring.split(",");
+                mywidth = obj.instances[0].width;
+                myheight = obj.instances[0].height;
+                mywidth2 = obj2.instances[0].width;
+                myheight2 = obj2.instances[0].height;
+                if ( owidth > 0 )
+                {
+                    mywidth = owidth;
+                }
+                if ( oheight > 0 )
+                {
+                    myheight = oheight;
+                }
+                if ( owidth2 > 0 )
+                {
+                    mywidth2 = owidth2;
+                }
+                if ( oheight2 > 0 )
+                {
+                    myheight2 = oheight2;
+                }
+		while ( a < temp.length )
+                {
+                    mylength = parseInt(temp[a+3]);
+                    myloop = 2;
+                    mypos = 1;
+                    if ( temp[a+2].toLowerCase()  == "r" )
+                    {
+                        var inst = this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1]));
+                        var inst2 = this.runtime.createInstance(obj2, layer,parseInt(temp[a])+((mywidth+mywidth2)/2),parseInt(temp[a+1]));
+                        while ( myloop < mylength )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])+(mypos*(mywidth+mywidth2)),parseInt(temp[a+1]));
+                            ++myloop;
+                            if ( myloop < mylength )
+                            {
+                                this.runtime.createInstance(obj2, layer,parseInt(temp[a])+(mypos*(mywidth+mywidth2))+((mywidth+mywidth2)/2),parseInt(temp[a+1]));
+                            }
+                            ++myloop;
+                            ++mypos;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase()  == "l" )
+                    {
+                        var inst = this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1]));
+                        var inst2 = this.runtime.createInstance(obj2, layer,parseInt(temp[a])-((mywidth+mywidth2)/2),parseInt(temp[a+1]));
+                        while ( myloop < mylength )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a])-(mypos*(mywidth+mywidth2)),parseInt(temp[a+1]));
+                            ++myloop;
+                            if ( myloop < mylength )
+                            {
+                                this.runtime.createInstance(obj2, layer,parseInt(temp[a])-(mypos*(mywidth+mywidth2))-((mywidth+mywidth2)/2),parseInt(temp[a+1]));
+                            }
+                            ++myloop;
+                            ++mypos;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase()  == "u" )
+                    {
+                        var inst = this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1]));
+                        var inst2 = this.runtime.createInstance(obj2, layer,parseInt(temp[a]),parseInt(temp[a+1])-((myheight+myheight2)/2));
+                        while ( myloop < mylength )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1])-(mypos*(myheight+myheight2)));
+                            ++myloop;
+                            if ( myloop < mylength )
+                            {
+                                this.runtime.createInstance(obj2, layer,parseInt(temp[a]),parseInt(temp[a+1])-(mypos*(myheight+myheight2))-((myheight+myheight2)/2));
+                            }
+                            ++myloop;
+                            ++mypos;
+                        }
+                    }
+                    if ( temp[a+2].toLowerCase()  == "d" )
+                    {
+                        var inst = this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1]));
+                        var inst2 = this.runtime.createInstance(obj2, layer,parseInt(temp[a]),parseInt(temp[a+1])+((myheight+myheight2)/2));
+                        while ( myloop < mylength )
+                        {
+                            this.runtime.createInstance(obj, layer,parseInt(temp[a]),parseInt(temp[a+1])+(mypos*(myheight+myheight2)));
+                            ++myloop;
+                            if ( myloop < mylength )
+                            {
+                                this.runtime.createInstance(obj2, layer,parseInt(temp[a]),parseInt(temp[a+1])+(mypos*(myheight+myheight2))+((myheight+myheight2)/2));
+                            }
+                            ++myloop;
+                            ++mypos;
+                        }
+                    }
+                    a = a + 4;
+                }
+	};
+	pluginProto.exps = {};
+	var exps = pluginProto.exps;
+}());
+;
+;
 cr.plugins_.gamepad = function(runtime)
 {
 	this.runtime = runtime;
@@ -33488,6 +35065,407 @@ cr.behaviors.Rex_Platform_MoveTo = function(runtime)
 }());
 ;
 ;
+cr.behaviors.Rex_text_typing = function (runtime) {
+	this.runtime = runtime;
+};
+(function () {
+	var behaviorProto = cr.behaviors.Rex_text_typing.prototype;
+	behaviorProto.Type = function (behavior, objtype) {
+		this.behavior = behavior;
+		this.objtype = objtype;
+		this.runtime = behavior.runtime;
+	};
+	var behtypeProto = behaviorProto.Type.prototype;
+	behtypeProto.onCreate = function () {
+		this.timeline = null;
+		this.timelineUid = -1;    // for loading
+	};
+	behtypeProto.getTimeline = function () {
+		if (this.timeline != null)
+			return this.timeline;
+;
+		var plugins = this.runtime.types;
+		var name, inst;
+		for (name in plugins) {
+			inst = plugins[name].instances[0];
+			if (inst instanceof cr.plugins_.Rex_TimeLine.prototype.Instance) {
+				this.timeline = inst;
+				return this.timeline;
+			}
+		}
+;
+		return null;
+	};
+	behaviorProto.Instance = function (type, inst) {
+		this.type = type;
+		this.behavior = type.behavior;
+		this.inst = inst;
+		this.runtime = type.runtime;
+	};
+	var behinstProto = behaviorProto.Instance.prototype;
+	behinstProto.onCreate = function () {
+		this.typeMode = this.properties[0];
+		this.isLineBreak = (this.properties[1] === 1);
+		this.typingTimer = null;
+		this.typingSpeed = 0;
+		this.typingIndex = 0;
+		this.content = "";
+		this.typingContent = null;
+		this.rawTextLength = 0;
+		this.timerSave = null;
+		this.textType = this.getTextObjType();
+		this.FnSetText = this.getFnSetText(this.textType);
+	};
+	var TYPE_NONE = 0;
+	var TYPE_TEXT = 1;
+	var TYPE_SPRITEFONT2 = 2;
+	var TYPE_TEXTBOX = 3;
+	var TYPE_SPRITEFONTPLUS = 4;
+	var TYPE_REX_TAGTEXT = 10;
+	var TYPE_REX_BBCODETEXT = 11;
+	behinstProto.getTextObjType = function () {
+		var textType;
+		if (cr.plugins_.Text &&
+			(this.inst instanceof cr.plugins_.Text.prototype.Instance))
+			textType = TYPE_TEXT;
+		else if (cr.plugins_.Spritefont2 &&
+			(this.inst instanceof cr.plugins_.Spritefont2.prototype.Instance))
+			textType = TYPE_SPRITEFONT2;
+		else if (cr.plugins_.TextBox &&
+			(this.inst instanceof cr.plugins_.TextBox.prototype.Instance))
+			textType = TYPE_TEXTBOX;
+		else if (cr.plugins_.rex_TagText &&
+			(this.inst instanceof cr.plugins_.rex_TagText.prototype.Instance))
+			textType = TYPE_REX_TAGTEXT;
+		else if (cr.plugins_.rex_bbcodeText &&
+			(this.inst instanceof cr.plugins_.rex_bbcodeText.prototype.Instance))
+			textType = TYPE_REX_BBCODETEXT;
+		else if (cr.plugins_.SpriteFontPlus &&
+			(this.inst instanceof cr.plugins_.SpriteFontPlus.prototype.Instance))
+			textType = TYPE_SPRITEFONTPLUS;
+		else
+			textType = TYPE_NONE;
+		return textType;
+	};
+	behinstProto.getFnSetText = function (textType) {
+		var set_text_handler;
+		if (textType === TYPE_TEXT)
+			set_text_handler = cr.plugins_.Text.prototype.acts.SetText;
+		else if (textType === TYPE_SPRITEFONT2)
+			set_text_handler = cr.plugins_.Spritefont2.prototype.acts.SetText;
+		else if (textType === TYPE_TEXTBOX)
+			set_text_handler = cr.plugins_.TextBox.prototype.acts.SetText;
+		else if (textType === TYPE_REX_TAGTEXT)
+			set_text_handler = cr.plugins_.rex_TagText.prototype.acts.SetText;
+		else if (this.textType === TYPE_REX_BBCODETEXT)
+			set_text_handler = cr.plugins_.rex_bbcodeText.prototype.acts.SetText;
+		else if (this.textType === TYPE_SPRITEFONTPLUS)
+			set_text_handler = cr.plugins_.SpriteFontPlus.prototype.acts.SetText;
+		else
+			set_text_handler = null;
+		return set_text_handler;
+	};
+	behinstProto.onDestroy = function () {
+		this.removeTypingTimer();
+	};
+	behinstProto.removeTypingTimer = function () {
+		if (this.typingTimer != null)
+			this.typingTimer.Remove();
+	};
+	behinstProto.tick = function () {
+	};
+	behinstProto.getRawTextLength = function (content) {
+		var len;
+		if ((this.textType === TYPE_TEXT) ||
+			(this.textType === TYPE_SPRITEFONT2) || (this.textType === TYPE_SPRITEFONTPLUS) ||
+			(this.textType === TYPE_TEXTBOX))
+			len = content.length;
+		else if ((this.textType === TYPE_REX_TAGTEXT) || (this.textType === TYPE_REX_BBCODETEXT))
+			len = this.inst.getRawText(content).length;
+		else
+			len = 0;
+		return len;
+	};
+	behinstProto.getSubString = function (txt, startIndex, endIndex) {
+		if (startIndex == null)
+			startIndex = 0;
+		if (endIndex == null)
+			endIndex = this.getRawTextLength(txt);
+		if (startIndex > endIndex) { // swap
+			var endIdx = startIndex;
+			var startIdx = endIndex;
+			startIndex = startIdx;
+			endIndex = endIdx;
+		}
+		var result;
+		if ((this.textType == TYPE_TEXT) ||
+			(this.textType == TYPE_SPRITEFONT2) || (this.textType === TYPE_SPRITEFONTPLUS) ||
+			(this.textType == TYPE_TEXTBOX)) {
+			result = txt.slice(startIndex, endIndex);
+		}
+		else if ((this.textType === TYPE_REX_TAGTEXT) || (this.textType === TYPE_REX_BBCODETEXT)) {
+			result = this.inst.getSubText(startIndex, endIndex, txt);
+		}
+		return result;
+	};
+	behinstProto.getTypingString = function (txt, typeIdx, typeMode) {
+		var result;
+		if (typeMode === 0) { //Left to right
+			var startIdx = 0;
+			var endIdx = typeIdx;
+			result = this.getSubString(txt, startIdx, endIdx);
+		} else if (typeMode === 1) { //Right to left
+			var endIdx = this.rawTextLength;
+			var startIdx = endIdx - typeIdx;
+			result = this.getSubString(txt, startIdx, endIdx);
+		} else if (typeMode === 2) { //Middle to sides
+			var txtMidIdx = this.rawTextLength / 2;
+			var startIdx = Math.floor(txtMidIdx - (typeIdx / 2));
+			var endIdx = startIdx + typeIdx;
+			result = this.getSubString(txt, startIdx, endIdx);
+		} else if (typeMode === 3) { //Sides to middle
+			var lowerLen = Math.floor(typeIdx / 2);
+			var lowerResult;
+			if (lowerLen > 0) {
+				var endIdx = this.rawTextLength;
+				var startIdx = endIdx - lowerLen;
+				lowerResult = this.getSubString(txt, startIdx, endIdx);
+			} else {
+				lowerResult = "";
+			}
+			var upperLen = typeIdx - lowerLen;
+			var upperResult;
+			if (upperLen > 0) {
+				var startIdx = 0;
+				var endIdx = startIdx + upperLen;
+				upperResult = this.getSubString(txt, startIdx, endIdx);
+			} else {
+				upperResult = "";
+			}
+			result = upperResult + lowerResult;
+		}
+		return result;
+	};
+	behinstProto.SetText = function (txt) {
+		if (this.FnSetText == null)
+			return;
+		this.FnSetText.call(this.inst, txt);
+	};
+	behinstProto.getTimer = function () {
+		var timer = this.typingTimer;
+		if (timer == null) {
+			var timeline = this.type.getTimeline();
+;
+			timer = timeline.CreateTimer(on_timeout);
+			timer.plugin = this;
+		}
+		return timer;
+	};
+	behinstProto.startTyping = function (text, speed, startIndex) {
+		this.content = text;
+		if (this.isLineBreak) {
+			text = this.lineBreakContent(text);
+		}
+		this.rawTextLength = this.getRawTextLength(text);
+		if (speed != 0) {
+			if (startIndex == null)
+				startIndex = 1;
+			this.typingTimer = this.getTimer();
+			this.typingContent = text;
+			this.typingSpeed = speed;
+			this.typingIndex = startIndex;
+			this.typingTimer.Start(0);
+		}
+		else {
+			this.typingIndex = this.rawTextLength;
+			text = this.getTypingString(text, this.typingIndex, this.typeMode);
+			this.SetText(text);
+			this.runtime.trigger(cr.behaviors.Rex_text_typing.prototype.cnds.OnTypingCompleted, this.inst);
+		}
+	};
+	var on_timeout = function () {
+		this.plugin.typing();
+	};
+	behinstProto.typing = function () {
+		var text = this.getTypingString(this.typingContent, this.typingIndex, this.typeMode);
+		this.SetText(text);
+		this.runtime.trigger(cr.behaviors.Rex_text_typing.prototype.cnds.OnTextTyping, this.inst);
+		this.typingIndex += 1;
+		if (this.typingIndex <= this.rawTextLength)
+			this.typingTimer.Restart(this.typingSpeed);
+		else {
+			this.typingIndex = this.rawTextLength;
+			this.typingContent = null;
+			this.runtime.trigger(cr.behaviors.Rex_text_typing.prototype.cnds.OnTypingCompleted, this.inst);
+		}
+	};
+	behinstProto.isTyping = function () {
+		return (this.typingTimer) ? this.typingTimer.IsActive() : false;
+	};
+	behinstProto.getWebglCtx = function () {
+		var inst = this.inst;
+		var ctx = inst.myctx;
+		if (!ctx) {
+			inst.mycanvas = document.createElement("canvas");
+			var scaledwidth = Math.ceil(inst.layer.getScale() * inst.width);
+			var scaledheight = Math.ceil(inst.layer.getAngle() * inst.height);
+			inst.mycanvas.width = scaledwidth;
+			inst.mycanvas.height = scaledheight;
+			inst.lastwidth = scaledwidth;
+			inst.lastheight = scaledheight;
+			inst.myctx = inst.mycanvas.getContext("2d");
+			ctx = inst.myctx;
+		}
+		return ctx;
+	};
+	behinstProto.drawText = function (text) {
+		this.SetText(text);
+		var inst = this.inst;
+		var ctx = (this.runtime.enableWebGL) ?
+			this.getWebglCtx() : this.runtime.ctx;
+		inst.draw(ctx);                      // call this function to get lines
+	};
+	behinstProto.lineBreakContent = function (source) {
+		this.drawText(source);
+		var content;
+		if (this.textType === TYPE_TEXT) {
+			content = this.inst.lines.join("\n");
+		}
+		else if ((this.textType === TYPE_SPRITEFONT2) || (this.textType === TYPE_SPRITEFONTPLUS)) {
+			var cnt = this.inst.lines.length;
+			var lines = [];
+			for (var i = 0; i < cnt; i++) {
+				lines.push(this.inst.lines[i].text);
+			}
+			content = lines.join("\n");
+		}
+		else if ((this.textType === TYPE_REX_TAGTEXT) || (this.textType === TYPE_REX_BBCODETEXT)) {
+			var pensMgr = this.inst.copyPensMgr();
+			var cnt = pensMgr.getLines().length;
+			var addNewLine = false;
+			content = "";
+			for (var i = 0; i < cnt; i++) {
+				if (addNewLine)
+					content += "\n";
+				var si = pensMgr.getLineStartChartIndex(i);
+				var ei = pensMgr.getLineEndChartIndex(i);
+				var txt = pensMgr.getSliceTagText(si, ei + 1);
+				content += txt;
+				addNewLine = (txt.indexOf("\n") === -1);
+			}
+		}
+		return content || "";
+	};
+	behinstProto.saveToJSON = function () {
+		return {
+			"c": this.content,
+			"tc": this.typingContent,
+			"spd": this.typingSpeed,
+			"i": this.typingIndex,
+			"tim": (this.typingTimer != null) ? this.typingTimer.saveToJSON() : null,
+			"tluid": (this.type.timeline != null) ? this.type.timeline.uid : (-1)
+		};
+	};
+	behinstProto.loadFromJSON = function (o) {
+		this.content = o["c"];
+		this.typingContent = o["tc"];
+		this.typingSpeed = o["spd"];
+		this.typingIndex = o["i"];
+		this.timerSave = o["tim"];
+		this.type.timelineUid = o["tluid"];
+	};
+	behinstProto.afterLoad = function () {
+		if (this.type.timelineUid === -1)
+			this.type.timeline = null;
+		else {
+			this.type.timeline = this.runtime.getObjectByUID(this.type.timelineUid);
+;
+		}
+		if (this.timerSave == null)
+			this.typingTimer = null;
+		else {
+			this.typingTimer = this.type.timeline.LoadTimer(this.timerSave, on_timeout);
+			this.typingTimer.plugin = this;
+		}
+		this.timers_save = null;
+	};
+	function Cnds() { };
+	behaviorProto.cnds = new Cnds();
+	Cnds.prototype.OnTextTyping = function () {
+		return true;
+	};
+	Cnds.prototype.OnTypingCompleted = function () {
+		return true;
+	};
+	Cnds.prototype.IsTextTyping = function () {
+		return this.isTyping();
+	};
+	function Acts() { };
+	behaviorProto.acts = new Acts();
+	Acts.prototype.SetupTimer = function (timeline_objs) {
+		var timeline = timeline_objs.instances[0];
+		if (timeline.check_name == "TIMELINE")
+			this.type.timeline = timeline;
+		else
+			alert("Text-typing should connect to a timeline object");
+	};
+	Acts.prototype.TypeText = function (param, speed) {
+		if (typeof param === "number")
+			param = Math.round(param * 1e10) / 1e10;	// round to nearest ten billionth - hides floating point errors
+		this.startTyping(param.toString(), speed);
+	};
+	Acts.prototype.SetTypingSpeed = function (speed) {
+		if (this.typingSpeed === speed)
+			return;
+		this.typingSpeed = speed;
+		var timer = this.typingTimer;
+		if (timer == null)
+			return;
+		if (timer.IsActive()) {
+			timer.Restart(speed);
+		}
+	};
+	Acts.prototype.StopTyping = function (is_show_all) {
+		this.removeTypingTimer();
+		if (is_show_all) {
+			this.SetText(this.content);
+			this.runtime.trigger(cr.behaviors.Rex_text_typing.prototype.cnds.OnTypingCompleted, this.inst);
+		}
+	};
+	Acts.prototype.AppendText = function (param) {
+		var startIndex = this.rawTextLength;
+		if (typeof param === "number")
+			param = Math.round(param * 1e10) / 1e10;	// round to nearest ten billionth - hides floating point errors
+		if (!this.isTyping())
+			this.startTyping(this.content + param.toString(), this.typingSpeed, startIndex);
+	};
+	Acts.prototype.Pause = function () {
+		if (this.typingTimer == null)
+			return;
+		this.typingTimer.Suspend();
+	};
+	Acts.prototype.Resume = function () {
+		if (this.typingTimer == null)
+			return;
+		this.typingTimer.Resume();
+	};
+	function Exps() { };
+	behaviorProto.exps = new Exps();
+	Exps.prototype.TypingSpeed = function (ret) {
+		ret.set_float(this.typingSpeed);
+	};
+	Exps.prototype.TypingIndex = function (ret) {
+		ret.set_float(this.typingIndex - 1);
+	};
+	Exps.prototype.Content = function (ret) {
+		ret.set_string(this.content);
+	};
+	Exps.prototype.LastTypingCharacter = function (ret) {
+		ret.set_string(this.content.charAt(this.typingIndex - 1));
+	};
+}());
+;
+;
 cr.behaviors.Sin = function(runtime)
 {
 	this.runtime = runtime;
@@ -34510,14 +36488,17 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.DialogBox,
 	cr.plugins_.Keyboard,
 	cr.plugins_.LocalStorage,
+	cr.plugins_.CAMFTimeManager,
 	cr.plugins_.AdvTextBox,
 	cr.plugins_.SpriteFont,
 	cr.plugins_.Mouse,
 	cr.plugins_.pix_dialogs,
+	cr.plugins_.Rex_TimeLine,
 	cr.plugins_.Rex_WebstorageExt,
 	cr.plugins_.rex_TouchWrap,
 	cr.plugins_.Rex_Video,
 	cr.plugins_.TiledSprite,
+	cr.plugins_.drawsprite,
 	cr.plugins_.Tilemap,
 	cr.plugins_.Sprite,
 	cr.plugins_.Spritefont2,
@@ -34538,6 +36519,7 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.scrollto_plus,
 	cr.behaviors.Pode_Pin,
 	cr.behaviors.Rex_Platform_MoveTo,
+	cr.behaviors.Rex_text_typing,
 	cr.plugins_.Keyboard.prototype.cnds.OnKey,
 	cr.behaviors.Platform.prototype.acts.FallThrough,
 	cr.plugins_.Keyboard.prototype.cnds.IsKeyDown,
@@ -34603,21 +36585,21 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.exps.distance,
 	cr.plugins_.Sprite.prototype.acts.SetPos,
 	cr.plugins_.Sprite.prototype.cnds.IsOverlapping,
-	cr.system_object.prototype.exps.left,
-	cr.system_object.prototype.exps.len,
-	cr.plugins_.Text.prototype.acts.Destroy,
+	cr.behaviors.Rex_text_typing.prototype.acts.TypeText,
 	cr.behaviors.Rex_Platform_MoveTo.prototype.acts.SetTargetPosX,
 	cr.plugins_.Sprite.prototype.cnds.IsOnScreen,
 	cr.plugins_.Audio.prototype.acts.SetVolume,
+	cr.plugins_.Text.prototype.cnds.OnDestroyed,
+	cr.behaviors.Rex_text_typing.prototype.cnds.OnTypingCompleted,
+	cr.plugins_.Text.prototype.acts.Destroy,
 	cr.behaviors.Rex_MoveTo.prototype.acts.SetTargetPos,
 	cr.plugins_.Text.prototype.acts.SetVisible,
 	cr.plugins_.Text.prototype.acts.SetFontColor,
 	cr.system_object.prototype.exps.rgb,
-	cr.plugins_.Text.prototype.acts.SetOpacity,
-	cr.plugins_.Text.prototype.cnds.OnDestroyed,
 	cr.plugins_.Sprite.prototype.acts.SetCollisions,
 	cr.system_object.prototype.acts.SetLayerOpacity,
 	cr.plugins_.Sprite.prototype.acts.SetOpacity,
+	cr.plugins_.Text.prototype.acts.SetPos,
 	cr.plugins_.Spritefont2.prototype.acts.SetEffectEnabled,
 	cr.plugins_.Mouse.prototype.cnds.IsOverObject,
 	cr.plugins_.Mouse.prototype.cnds.OnObjectClicked,
@@ -34638,6 +36620,8 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.exps.clamp,
 	cr.system_object.prototype.exps.max,
 	cr.plugins_.Sprite.prototype.acts.MoveToLayer,
+	cr.system_object.prototype.exps.left,
+	cr.system_object.prototype.exps.len,
 	cr.system_object.prototype.acts.GoToLayoutByName
 ];};
 

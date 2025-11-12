@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1762962844,
+	"version": 1762980184,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -115,6 +115,7 @@
 		"images/player_cutscene_dormindo-sheet0.png",
 		"images/chapeuzinho-sheet0.png",
 		"images/trigger_fala_01_chapeuzinho-sheet0.png",
+		"images/trigger_tutorial_02-sheet0.png",
 		"media/attack_espada.ogg",
 		"media/dano_em_metal.ogg",
 		"media/dano_base_humano.ogg",
