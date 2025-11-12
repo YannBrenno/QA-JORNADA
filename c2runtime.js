@@ -28441,2564 +28441,6 @@ cr.plugins_.Touch = function(runtime)
 }());
 ;
 ;
-var lapcounter=0;
-var x_speed=0;
-var y_speed=0;
-var out_run_state=false;
-var now,last,dt,gdt,oldsegment,index;
-var start_seg,bseg1,bseg2,bseg3,bseg4,bseg5,bseg6,bseg7,bseg8,bseg9,bseg10,end_seg;
-var start_seglen,bseg1len,bseg2len,bseg3len,bseg4len,bseg5len,bseg6len,bseg7len,bseg8len,bseg9len,bseg10len,end_seglen=0;
-var start_seg_side,start_seg_bb,start_seg_plts,start_seg_misc;
-var bseg1_side,bseg1_bb,bseg1_plts,bseg1_misc;
-var bseg2_side,bseg2_bb,bseg2_plts,bseg2_misc;
-var bseg3_side,bseg3_bb,bseg3_plts,bseg3_misc;
-var bseg4_side,bseg4_bb,bseg4_plts,bseg4_misc;
-var bseg5_side,bseg5_bb,bseg5_plts,bseg5_misc;
-var bseg6_side,bseg6_bb,bseg6_plts,bseg6_misc;
-var bseg7_side,bseg7_bb,bseg7_plts,bseg7_misc;
-var bseg8_side,bseg8_bb,bseg8_plts,bseg8_misc;
-var bseg9_side,bseg9_bb,bseg9_plts,bseg9_misc;
-var bseg10_side,bseg10_bb,bseg10_plts,bseg10_misc;
-var end_seg_side,end_seg_bb,end_seg_plts,end_seg_misc;
-if (!window.requestAnimationFrame) { // http://paulirish.com/2011/requestanimationframe-for-smart-animating/
-  window.requestAnimationFrame = window.webkitRequestAnimationFrame ||
-                                 window.mozRequestAnimationFrame    ||
-                                 window.oRequestAnimationFrame      ||
-                                 window.msRequestAnimationFrame     ||
-                                 function(callback, element) {
-                                   window.setTimeout(callback, 1000 / 60);
-                                 }
-}
-var Dom = {
-  get:  function(id)                     { return ((id instanceof HTMLElement) || (id === document)) ? id : document.getElementById(id); },
-  set:  function(id, html)               { Dom.get(id).innerHTML = html;                        },
-  on:   function(ele, type, fn, capture) { Dom.get(ele).addEventListener(type, fn, capture);    },
-  un:   function(ele, type, fn, capture) { Dom.get(ele).removeEventListener(type, fn, capture); },
-  show: function(ele, type)              { Dom.get(ele).style.display = (type || 'block');      },
-  blur: function(ev)                     { ev.target.blur();                                    },
-  addClassName:    function(ele, name)     { Dom.toggleClassName(ele, name, true);  },
-  removeClassName: function(ele, name)     { Dom.toggleClassName(ele, name, false); },
-  toggleClassName: function(ele, name, on) {
-    var ele = Dom.get(ele);
-    var classes = ele.className.split(' ');
-    var n = classes.indexOf(name);
-    on = (typeof on == 'undefined') ? (n < 0) : on;
-    if (on && (n < 0))
-      classes.push(name);
-    else if (!on && (n >= 0))
-      classes.splice(n, 1);
-    ele.className = classes.join(' ');
-  },
-  storage: window.localStorage || {}
-}
-var Util = {
-  timestamp:        function()                  { return new Date().getTime();                                    },
-  toInt:            function(obj, def)          { if (obj !== null) { var x = parseInt(obj, 10); if (!isNaN(x)) return x; } return Util.toInt(def, 0); },
-  toFloat:          function(obj, def)          { if (obj !== null) { var x = parseFloat(obj);   if (!isNaN(x)) return x; } return Util.toFloat(def, 0.0); },
-  limit:            function(value, min, max)   { return Math.max(min, Math.min(value, max));                     },
-  randomInt:        function(min, max)          { return Math.round(Util.interpolate(min, max, Math.random()));   },
-  randomChoice:     function(options)           { return options[Util.randomInt(0, options.length-1)];            },
-  percentRemaining: function(n, total)          { return (n%total)/total;                                         },
-  accelerate:       function(v, accel, dt)      { return v + (accel * dt);                                        },
-  interpolate:      function(a,b,percent)       { return a + (b-a)*percent                                        },
-  easeIn:           function(a,b,percent)       { return a + (b-a)*Math.pow(percent,2);                           },
-  easeOut:          function(a,b,percent)       { return a + (b-a)*(1-Math.pow(1-percent,2));                     },
-  easeInOut:        function(a,b,percent)       { return a + (b-a)*((-Math.cos(percent*Math.PI)/2) + 0.5);        },
-  exponentialFog:   function(distance, density) { return 1 / (Math.pow(Math.E, (distance * distance * density))); },
-  increase:  function(start, increment, max) { // with looping
-    var result = start + increment;
-    while (result >= max)
-      result -= max;
-    while (result < 0)
-      result += max;
-    return result;
-  },
-  project: function(p, cameraX, cameraY, cameraZ, cameraDepth, width, height, roadWidth) {
-    p.camera.x     = (p.world.x || 0) - cameraX;
-    p.camera.y     = (p.world.y || 0) - cameraY;
-    p.camera.z     = (p.world.z || 0) - cameraZ;
-    p.screen.scale = cameraDepth/p.camera.z;
-    p.screen.x     = Math.round((width/2)  + (p.screen.scale * p.camera.x  * width/2));
-    p.screen.y     = Math.round((height/2) - (p.screen.scale * p.camera.y  * height/2));
-    p.screen.w     = Math.round(             (p.screen.scale * roadWidth   * width/2));
-  },
-  overlap: function(x1, w1, x2, w2, percent) {
-    var half = (percent || 1)/2;
-    var min1 = x1 - (w1*half);
-    var max1 = x1 + (w1*half);
-    var min2 = x2 - (w2*half);
-    var max2 = x2 + (w2*half);
-    return ! ((max1 < min2) || (min1 > max2));
-  }
-}
-var Game = {  // a modified version of the game loop from my previous boulderdash game - see http://codeincomplete.com/posts/2011/10/25/javascript_boulderdash/#gameloop
-  run: function(options) {
-    Game.loadImages(options.images, function(images) {
-      options.ready(images); // tell caller to initialize itself because images are loaded and we're ready to rumble
-      Game.setKeyListener(options.keys);
-          gcanvas = gcanvas,    // canvas render target is provided by caller
-          update = options.update,    // method to update game logic is provided by caller
-          render = options.render,    // method to render the game is provided by caller
-          step   = options.step,      // fixed frame step (1/fps) is specified by caller
-          now    = null,
-          last   = Util.timestamp(),
-          dt     = 0,
-          gdt    = 0;
-      function frame() {
-        now = Util.timestamp();
-        dt  = Math.min(1, (now - last) / 800); // using requestAnimationFrame have to be able to handle large delta's caused when it 'hibernates' in a background or non-visible tab
-        gdt = gdt + dt;
-        while (gdt > step) {
-          gdt = gdt - step;
-          update(step);
-        }
-        render();
-        last = now;
-         requestAnimationFrame(frame, gcanvas);
-      }
-      frame(); // lets get this party started
-    });
-  },
-  loadImages: function(names, callback) { // load multiple images and callback when ALL images have loaded
-    var result = [];
-    var count  = names.length;
-    var onload = function() {
-      if (--count == 0)
-        callback(result);
-    };
-    for(var n = 0 ; n < names.length ; n++) {
-      var name = names[n];
-      result[n] = document.createElement('img');
-      Dom.on(result[n], 'load', onload);
-      result[n].src = "" + name + ".png";
-    }
-  },
-  setKeyListener: function(keys) {
-    var onkey = function(keyCode, mode) {
-      var n, k;
-      for(n = 0 ; n < keys.length ; n++) {
-        k = keys[n];
-        k.mode = k.mode || 'up';
-        if ((k.key == keyCode) || (k.keys && (k.keys.indexOf(keyCode) >= 0))) {
-          if (k.mode == mode) {
-            k.action.call();
-          }
-        }
-      }
-    };
-    Dom.on(document, 'keydown', function(ev) { onkey(ev.keyCode, 'down'); } );
-    Dom.on(document, 'keyup',   function(ev) { onkey(ev.keyCode, 'up');   } );
-  },
-}
-var Render = {
-  polygon: function(ctx, x1, y1, x2, y2, x3, y3, x4, y4, color) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.lineTo(x3, y3);
-    ctx.lineTo(x4, y4);
-    ctx.closePath();
-    ctx.fill();
-  },
-  segment: function(ctx, width, lanes, x1, y1, w1, x2, y2, w2, fog, color) {
-    var r1 = Render.rumbleWidth(w1, lanes),
-        r2 = Render.rumbleWidth(w2, lanes),
-        l1 = Render.laneMarkerWidth(w1, lanes),
-        l2 = Render.laneMarkerWidth(w2, lanes),
-        lanew1, lanew2, lanex1, lanex2, lane;
-    ctx.fillStyle = color.grass;
-    ctx.fillRect(0, y2, width, y1 - y2);
-    Render.polygon(ctx, x1-w1-r1, y1, x1-w1, y1, x2-w2, y2, x2-w2-r2, y2, color.rumble);
-    Render.polygon(ctx, x1+w1+r1, y1, x1+w1, y1, x2+w2, y2, x2+w2+r2, y2, color.rumble);
-    Render.polygon(ctx, x1-w1,    y1, x1+w1, y1, x2+w2, y2, x2-w2,    y2, color.road);
-    if (color.lane) {
-      lanew1 = w1*2/lanes;
-      lanew2 = w2*2/lanes;
-      lanex1 = x1 - w1 + lanew1;
-      lanex2 = x2 - w2 + lanew2;
-      for(lane = 1 ; lane < lanes ; lanex1 += lanew1, lanex2 += lanew2, lane++)
-        Render.polygon(ctx, lanex1 - l1/2, y1, lanex1 + l1/2, y1, lanex2 + l2/2, y2, lanex2 - l2/2, y2, color.lane);
-    }
-    Render.fog(ctx, 0, y1, width, y2-y1, fog);
-  },
-  background: function(ctx, background, width, height, layer, rotation, offset) {
-    rotation = rotation || 0;
-    offset   = offset   || 0;
-    var imageW = layer.w/2;
-    var imageH = layer.h;
-    var sourceX = layer.x + Math.floor(layer.w * rotation);
-    var sourceY = layer.y
-    var sourceW = Math.min(imageW, layer.x+layer.w-sourceX);
-    var sourceH = imageH;
-    var destX = 0;
-    var destY = offset;
-    var destW = Math.floor(width * (sourceW/imageW));
-    var destH = height;
-   if(sourceX<1284)
-	 ctx.drawImage(background, sourceX, sourceY, sourceW, sourceH, destX, destY, destW, destH);
-    if (sourceW < imageW)
-     ctx.drawImage(background, layer.x, sourceY, imageW-sourceW, sourceH, destW-1, destY, width-destW, destH);
-  },
-  sprite: function(ctx, width, height, resolution, roadWidth, sprites, sprite, scale, destX, destY, offsetX, offsetY, clipY) {
-    var destW  = (sprite.w * scale * width/2) * (SPRITES.SCALE * roadWidth);
-    var destH  = (sprite.h * scale * width/2) * (SPRITES.SCALE * roadWidth);
-    destX = destX + (destW * (offsetX || 0));
-    destY = destY + (destH * (offsetY || 0));
-    var clipH = clipY ? Math.max(0, destY+destH-clipY) : 0;
-    if (clipH < destH)
-      ctx.drawImage(sprites, sprite.x, sprite.y, sprite.w, sprite.h - (sprite.h*clipH/destH), destX, destY, destW, destH - clipH);
-  },
-  player: function(ctx, width, height, resolution, roadWidth, sprites, speedPercent, scale, destX, destY, steer, updown) {
-    var bounce = (1.5 * Math.random() * speedPercent * resolution) * Util.randomChoice([-1,1]);
-    var sprite;
-    if (steer < 0)
-      sprite = (updown > 0) ? SPRITES.PLAYER_UPHILL_LEFT : SPRITES.PLAYER_LEFT;
-    else if (steer > 0)
-      sprite = (updown > 0) ? SPRITES.PLAYER_UPHILL_RIGHT : SPRITES.PLAYER_RIGHT;
-    else
-      sprite = (updown > 0) ? SPRITES.PLAYER_UPHILL_STRAIGHT : SPRITES.PLAYER_STRAIGHT;
-    Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite, scale, destX, destY + bounce*bouncefactor, -0.5, -1);
-  },
-  fog: function(ctx, x, y, width, height, fog) {
-    if (fog < 1) {
-      ctx.globalAlpha = (1-fog)
-      ctx.fillStyle = COLORS.FOG;
-      ctx.fillRect(x, y, width, height);
-      ctx.globalAlpha = 1;
-    }
-  },
-  rumbleWidth:     function(projectedRoadWidth, lanes) { return projectedRoadWidth/Math.max(6,  2*lanes); },
-  laneMarkerWidth: function(projectedRoadWidth, lanes) { return projectedRoadWidth/Math.max(32, 8*lanes); }
-}
-var KEY = {
-  LEFT:  37,
-  UP:    38,
-  RIGHT: 39,
-  DOWN:  40,
-  A:     65,
-  D:     68,
-  S:     83,
-  W:     87
-};
-var COLORS = {
-  SKY:  '#72D7EE',
-  TREE: '#005108',
-  FOG:  '#005108',
-  LIGHT:  { road: '#6B6B6B', grass: '#10AA10', rumble: '#555555', lane: '#CCCCCC'  },
-  DARK:   { road: '#696969', grass: '#009A00', rumble: '#BBBBBB'                   },
-  START:  { road: 'white',   grass: 'white',   rumble: 'white'                     },
-  FINISH: { road: 'black',   grass: 'black',   rumble: 'black'                     }
-};
-var BACKGROUND = {
-  HILLS: { x:   5, y:   5, w: 1280, h: 480 },
-  SKY:   { x:   5, y: 500, w: 1280, h: 480 },// sky x = 495
-  TREES: { x:   5, y: 985, w: 1280, h: 480 }
-};
-var SPRITES = {
-  NONE:                   { x:    0, y:    0, w:  1, h:  1 },
-  PALM_TREE:              { x:    5, y:    5, w:  215, h:  540 },
-  BILLBOARD08:            { x:  230, y:    5, w:  385, h:  265 },
-  TREE1:                  { x:  625, y:    5, w:  360, h:  360 },
-  DEAD_TREE1:             { x:    5, y:  555, w:  135, h:  332 },
-  BILLBOARD09:            { x:  150, y:  555, w:  328, h:  282 },
-  BOULDER3:               { x:  230, y:  280, w:  320, h:  220 },
-  COLUMN:                 { x:  995, y:    5, w:  200, h:  315 },
-  COLUMN2:                { x:  820, y: 1170, w:  199, h:  313 },
-  BILLBOARD01:            { x:  625, y:  375, w:  300, h:  170 },
-  BILLBOARD06:            { x:  488, y:  555, w:  298, h:  190 },
-  BILLBOARD05:            { x:    5, y:  897, w:  298, h:  190 },
-  BILLBOARD07:            { x:  313, y:  897, w:  298, h:  190 },
-  BOULDER2:               { x:  621, y:  897, w:  298, h:  140 },
-  TREE2:                  { x: 1205, y:    5, w:  282, h:  295 },
-  BILLBOARD04:            { x: 1205, y:  310, w:  268, h:  170 },
-  DEAD_TREE2:             { x: 1205, y:  490, w:  150, h:  260 },
-  BOULDER1:               { x: 1205, y:  760, w:  168, h:  248 },
-  BUSH1:                  { x:    5, y: 1097, w:  240, h:  155 },
-  CACTUS:                 { x:  929, y:  897, w:  235, h:  118 },
-  BUSH2:                  { x:  255, y: 1097, w:  232, h:  152 },
-  BILLBOARD03:            { x:    5, y: 1262, w:  230, h:  220 },
-  BILLBOARD02:            { x:  245, y: 1262, w:  215, h:  220 },
-  STUMP:                  { x:  995, y:  330, w:  195, h:  140 },
-  SEMI:                   { x: 1365, y:  490, w:  122, h:  144 },
-  TRUCK:                  { x: 1365, y:  644, w:  100, h:   78 },
-  CAR03:                  { x: 1383, y:  760, w:   88, h:   55 },
-  CAR02:                  { x: 1383, y:  825, w:   80, h:   59 },
-  CAR04:                  { x: 1383, y:  894, w:   80, h:   57 },
-  CAR01:                  { x: 1205, y: 1018, w:   80, h:   56 },
-  PLAYER_UPHILL_LEFT:     { x: 1383, y:  961, w:   80, h:   45 },
-  PLAYER_UPHILL_STRAIGHT: { x: 1295, y: 1018, w:   80, h:   45 },
-  PLAYER_UPHILL_RIGHT:    { x: 1385, y: 1018, w:   80, h:   45 },
-  PLAYER_LEFT:            { x:  995, y:  480, w:   80, h:   41 },
-  PLAYER_STRAIGHT:        { x: 1085, y:  480, w:   80, h:   41 },
-  PLAYER_RIGHT:           { x:  995, y:  531, w:   80, h:   41 },
-  BILLBOARD10:            { x:  486, y:  612, w:  290, h:  138 },
-  BILLBOARD11:            { x:  1044, y:  1279, w:  287, h:  196 },
-  BILLBOARD12:            { x:  885, y:  680, w:  283, h:  191 },
-  CROPS:                  { x:  1033, y: 1168, w:  280, h:  54 },
-};
-SPRITES.SCALE = 0.3 * (1/SPRITES.PLAYER_STRAIGHT.w) // the reference sprite width should be 1/3rd the (half-)roadWidth
-SPRITES.BILLBOARDS = [SPRITES.BILLBOARD01, SPRITES.BILLBOARD02, SPRITES.BILLBOARD03, SPRITES.BILLBOARD04, SPRITES.BILLBOARD05, SPRITES.BILLBOARD06,
-                      SPRITES.BILLBOARD07, SPRITES.BILLBOARD08, SPRITES.BILLBOARD09,SPRITES.BILLBOARD10,SPRITES.BILLBOARD11,SPRITES.BILLBOARD12];
-SPRITES.PLANTS     = [SPRITES.NONE,SPRITES.TREE1, SPRITES.TREE2, SPRITES.DEAD_TREE1, SPRITES.DEAD_TREE2, SPRITES.PALM_TREE, SPRITES.BUSH1, SPRITES.BUSH2, SPRITES.CACTUS, SPRITES.STUMP, SPRITES.BOULDER1, SPRITES.BOULDER2, SPRITES.BOULDER3];
-SPRITES.CARS       = [SPRITES.CAR01, SPRITES.CAR02, SPRITES.CAR03, SPRITES.CAR04, SPRITES.SEMI, SPRITES.TRUCK];
-function update(dt) {
-      var n, car, carW, sprite, spriteW;
-      var playerSegment = findSegment(position+playerZ);
-      var playerW       = SPRITES.PLAYER_STRAIGHT.w * SPRITES.SCALE;
-      var speedPercent  = speed/maxSpeed;
-      var dx            = dt * 2 * speedPercent; // at top speed, should be able to cross from left to right (-1 to 1) in 1 second
-      var startPosition = position;
-      updateCars(dt, playerSegment, playerW);
-      position = Util.increase(position, dt * speed, trackLength);
-      if (keyLeft)
-        playerX = playerX - dx;
-      else if (keyRight)
-        playerX = playerX + dx;
-      playerX = playerX - (dx * speedPercent * playerSegment.curve * centrifugal);
-      if (keyFaster)
-        speed = Util.accelerate(speed, accel, dt);
-      else if (keySlower)
-        speed = Util.accelerate(speed, breaking, dt);
-      else
-        speed = Util.accelerate(speed, decel, dt);
-      if ((playerX < -1) || (playerX > 1)) {
-        if (speed > offRoadLimit)
-          speed = Util.accelerate(speed, offRoadDecel, dt);
-	   for(n = 0 ; n < playerSegment.sprites.length ; n++) {
-          sprite  = playerSegment.sprites[n];
-          spriteW = sprite.source.w * SPRITES.SCALE;
-          if (Util.overlap(playerX, playerW, sprite.offset + spriteW/2 * (sprite.offset > 0 ? 1 : -1), spriteW)) {
-           speed = maxSpeed/10;
-            position = Util.increase(playerSegment.p1.world.z, -playerZ, trackLength); // stop in front of sprite (at front of segment)
-            break;
-          }
-        }
-      }
-      for(n = 0 ; n < playerSegment.cars.length ; n++) {
-        car  = playerSegment.cars[n];
-        carW = car.sprite.w * SPRITES.SCALE;
-        if (speed > car.speed) {
-          if (Util.overlap(playerX, playerW, car.offset, carW, 0.8)) {
-            speed    = 0  ;//(car.speed/speed)
-            position = Util.increase(car.z, -playerZ, trackLength);
-            break;
-          }
-        }
-      }
-      playerX = Util.limit(playerX, -3, 3);     // dont ever let it go too far out of bounds
-	  if((playerX>1) || (playerX<-1))          // if car offroad bounce more !
-		bouncefactor=6;
-		else
-		bouncefactor=1;
-      speed   = Util.limit(speed, 0, maxSpeed); // or exceed maxSpeed
-      skyOffset  = Util.increase(skyOffset,  skySpeed  * playerSegment.curve * (position-startPosition)/segmentLength, 1);
-      hillOffset = Util.increase(hillOffset, hillSpeed * playerSegment.curve * (position-startPosition)/segmentLength, 1);
-      treeOffset = Util.increase(treeOffset, treeSpeed * playerSegment.curve * (position-startPosition)/segmentLength, 1);
-      if (position > playerZ) {
-        if (currentLapTime && (startPosition < playerZ)) {
-          lastLapTime    = currentLapTime;
-          currentLapTime = 0;
-          if (lastLapTime <= Util.toFloat(Dom.storage.fast_lap_time)) {
-          }
-          else {
-          }
-		 lapcounter+=1;
-        }
-        else {
-          currentLapTime += dt;
-        }
-      }
-    }
-    function updateCars(dt, playerSegment, playerW) {
-      var n, car, oldSegment, newSegment;
-      for(n = 0 ; n < cars.length ; n++) {
-        car         = cars[n];
-        oldSegment  = findSegment(car.z);
-        car.offset  = car.offset + updateCarOffset(car, oldSegment, playerSegment, playerW);
-        car.z       = Util.increase(car.z, dt * car.speed, trackLength);
-        car.percent = Util.percentRemaining(car.z, segmentLength); // useful for interpolation during rendering phase
-        newSegment  = findSegment(car.z);
-        if (oldSegment != newSegment) {
-          index = oldSegment.cars.indexOf(car);
-          oldSegment.cars.splice(index, 1);
-          newSegment.cars.push(car);
-        }
-      }
-    }
-    function updateCarOffset(car, carSegment, playerSegment, playerW) {
-      var i, j, dir, segment, otherCar, otherCarW, lookahead = 20, carW = car.sprite.w * SPRITES.SCALE;
-      if ((carSegment.index - playerSegment.index) > drawDistance)
-        return 0;
-      for(i = 1 ; i < lookahead ; i++) {
-        segment = segments[(carSegment.index+i)%segments.length];
-        if ((segment === playerSegment) && (car.speed > speed) && (Util.overlap(playerX, playerW, car.offset, carW, 1.2))) {
-          if (playerX > 0.5)
-            dir = -1;
-          else if (playerX < -0.5)
-            dir = 1;
-          else
-            dir = (car.offset > playerX) ? 1 : -1;
-          return dir * 1/i * (car.speed-speed)/maxSpeed; // the closer the cars (smaller i) and the greated the speed ratio, the larger the offset
-        }
-        for(j = 0 ; j < segment.cars.length ; j++) {
-          otherCar  = segment.cars[j];
-          otherCarW = otherCar.sprite.w * SPRITES.SCALE;
-          if ((car.speed > otherCar.speed) && Util.overlap(car.offset, carW, otherCar.offset, otherCarW, 1.2)) {
-            if (otherCar.offset > 0.5)
-              dir = -1;
-            else if (otherCar.offset < -0.5)
-              dir = 1;
-            else
-              dir = (car.offset > otherCar.offset) ? 1 : -1;
-            return dir * 1/i * (car.speed-otherCar.speed)/maxSpeed;
-          }
-        }
-      }
-      if (car.offset < -0.9)
-        return 0.1;
-      else if (car.offset > 0.9)
-        return -0.1;
-      else
-        return 0;
-    }
-    function formatTime(dt) {
-      var minutes = Math.floor(dt/60);
-      var seconds = Math.floor(dt - (minutes * 60));
-      var tenths  = Math.floor(10 * (dt - Math.floor(dt)));
-      if (minutes > 0)
-        return minutes + "." + (seconds < 10 ? "0" : "") + seconds + "." + tenths;
-      else
-        return seconds + "." + tenths;
-    }
-    function render() {
-      var baseSegment   = findSegment(position);
-      var basePercent   = Util.percentRemaining(position, segmentLength);
-      var playerSegment = findSegment(position+playerZ);
-      var playerPercent = Util.percentRemaining(position+playerZ, segmentLength);
-      var playerY       = Util.interpolate(playerSegment.p1.world.y, playerSegment.p2.world.y, playerPercent);
-      var maxy          = height;
-      var x  = 0;
-      var dx = - (baseSegment.curve * basePercent);
-      ctx.clearRect(0, 0, width, height);
-      Render.background(ctx, background, width, height, BACKGROUND.SKY,   skyOffset,  resolution * skySpeed  );
-      Render.background(ctx, background, width, height, BACKGROUND.HILLS, hillOffset, resolution * hillSpeed * playerY);
-      Render.background(ctx, background, width, height, BACKGROUND.TREES, treeOffset, resolution * treeSpeed * playerY);
-      var n, i, segment, car, sprite, spriteScale, spriteX, spriteY;
-      for(n = 0 ; n < drawDistance ; n++) {
-        segment        = segments[(baseSegment.index + n) % segments.length];
-        segment.looped = segment.index < baseSegment.index;
-        segment.fog    = Util.exponentialFog(n/drawDistance, fogDensity);
-        segment.clip   = maxy;
-        Util.project(segment.p1, (playerX * roadWidth) - x,      playerY + cameraHeight, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
-        Util.project(segment.p2, (playerX * roadWidth) - x - dx, playerY + cameraHeight, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
-        x  = x + dx;
-        dx = dx + segment.curve;
-        if ((segment.p1.camera.z <= cameraDepth)         || // behind us
-            (segment.p2.screen.y >= segment.p1.screen.y) || // back face cull
-            (segment.p2.screen.y >= maxy))                  // clip by (already rendered) hill
-          continue;
-        Render.segment(ctx, width, lanes,
-                       segment.p1.screen.x,
-                       segment.p1.screen.y,
-                       segment.p1.screen.w,
-                       segment.p2.screen.x,
-                       segment.p2.screen.y,
-                       segment.p2.screen.w,
-                       segment.fog,
-                       segment.color);
-        maxy = segment.p1.screen.y;
-      }
-      for(n = (drawDistance-1) ; n > 0 ; n--) {
-        segment = segments[(baseSegment.index + n) % segments.length];
-        for(i = 0 ; i < segment.cars.length ; i++) {
-          car         = segment.cars[i];
-          sprite      = car.sprite;
-          spriteScale = Util.interpolate(segment.p1.screen.scale, segment.p2.screen.scale, car.percent);
-          spriteX     = Util.interpolate(segment.p1.screen.x,     segment.p2.screen.x,     car.percent) + (spriteScale * car.offset * roadWidth * width/2);
-          spriteY     = Util.interpolate(segment.p1.screen.y,     segment.p2.screen.y,     car.percent);
-          Render.sprite(ctx, width, height, resolution, roadWidth, sprites, car.sprite, spriteScale, spriteX, spriteY, -0.5, -1, segment.clip);
-        }
-        for(i = 0 ; i < segment.sprites.length ; i++) {
-          sprite      = segment.sprites[i];
-          spriteScale = segment.p1.screen.scale;
-          spriteX     = segment.p1.screen.x + (spriteScale * sprite.offset * roadWidth * width/2);
-          spriteY     = segment.p1.screen.y;
-          Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite.source, spriteScale, spriteX, spriteY, (sprite.offset < 0 ? -1 : 0), -1, segment.clip);
-        }
-        if (segment == playerSegment) {
-          Render.player(ctx, width, height, resolution, roadWidth, sprites, speed/maxSpeed,
-                        cameraDepth/playerZ,
-                        width/2,
-                        (height/2) - (cameraDepth/playerZ * Util.interpolate(playerSegment.p1.camera.y, playerSegment.p2.camera.y, playerPercent) * height/2),
-                        speed * (keyLeft ? -1 : keyRight ? 1 : 0),
-                        playerSegment.p2.world.y - playerSegment.p1.world.y);
-        }
-      }
-    }
-    function findSegment(z) {
-      return segments[Math.floor(z/segmentLength) % segments.length];
-    }
-    function lastY() { return (segments.length == 0) ? 0 : segments[segments.length-1].p2.world.y; }
-    function addSegment(curve, y) {
-      var n = segments.length;
-      segments.push({
-          index: n,
-             p1: { world: { y: lastY(), z:  n   *segmentLength }, camera: {}, screen: {} },
-             p2: { world: { y: y,       z: (n+1)*segmentLength }, camera: {}, screen: {} },
-          curve: curve,
-        sprites: [],
-           cars: [],
-          color: Math.floor(n/rumbleLength)%2 ? COLORS.DARK : COLORS.LIGHT
-      });
-    }
-    function addSprite(n, sprite, offset) {
-      segments[n].sprites.push({ source: sprite, offset: offset });
-	}
-    function addRoad(enter, hold, leave, curve, y) {
-      var startY   = lastY();
-      var endY     = startY + (Util.toInt(y, 0) * segmentLength);
-      var n, total = enter + hold + leave;
-      for(n = 0 ; n < enter ; n++)
-        addSegment(Util.easeIn(0, curve, n/enter), Util.easeInOut(startY, endY, n/total));
-      for(n = 0 ; n < hold  ; n++)
-        addSegment(curve, Util.easeInOut(startY, endY, (enter+n)/total));
-      for(n = 0 ; n < leave ; n++)
-        addSegment(Util.easeInOut(curve, 0, n/leave), Util.easeInOut(startY, endY, (enter+hold+n)/total));
-	}
-var ROAD = {
-      LENGTH: { NONE: 0, SHORT:  50, MEDIUM: 100, LONG:   200 },
-      HILL:   { NONE: 0, LOW:    40, MEDIUM: 80 , HIGH:   120 },
-      CURVE:  { NONE: 0, EASY:    2, MEDIUM:    4, HARD:    6 }
-    };
-    function addStraight(num) {
-      num = num || ROAD.LENGTH.MEDIUM;
-      addRoad(num, num, num, 0, 0);
-		return num;
-	}
-    function addHill(num, height) {
-      num    = num    || ROAD.LENGTH.MEDIUM;
-      height = height || ROAD.HILL.MEDIUM;
-      addRoad(num, num, num, 0, height);
-    }
-    function addCurve(num, curve, height) {
-      num    = num    || ROAD.LENGTH.MEDIUM;
-      curve  = curve  || ROAD.CURVE.MEDIUM;
-      height = height || ROAD.HILL.NONE;
-      addRoad(num, num, num, curve, height);
-    }
-    function addLowRollingHills(num, height) {
-      num    = num    || ROAD.LENGTH.SHORT;
-      height = height || ROAD.HILL.LOW;
-      addRoad(num, num, num,  0,                height/2);
-      addRoad(num, num, num,  0,               -height);
-      addRoad(num, num, num,  ROAD.CURVE.EASY,  height);
-      addRoad(num, num, num,  0,                0);
-      addRoad(num, num, num, -ROAD.CURVE.EASY,  height/2);
-      addRoad(num, num, num,  0,                0);
-    }
-    function addSCurves() {
-      addRoad(ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM,  -ROAD.CURVE.EASY,    ROAD.HILL.NONE);
-      addRoad(ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM,   ROAD.CURVE.MEDIUM,  ROAD.HILL.MEDIUM);
-      addRoad(ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM,   ROAD.CURVE.EASY,   -ROAD.HILL.LOW);
-      addRoad(ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM,  -ROAD.CURVE.EASY,    ROAD.HILL.MEDIUM);
-      addRoad(ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM,  -ROAD.CURVE.MEDIUM, -ROAD.HILL.MEDIUM);
-    }
-    function addBumps() {
-      addRoad(10, 10, 10, 0,  5);
-      addRoad(10, 10, 10, 0, -2);
-      addRoad(10, 10, 10, 0, -5);
-      addRoad(10, 10, 10, 0,  8);
-      addRoad(10, 10, 10, 0,  5);
-      addRoad(10, 10, 10, 0, -7);
-      addRoad(10, 10, 10, 0,  5);
-      addRoad(10, 10, 10, 0, -2);
-    }
-    function addDownhill(num) {
-      num = num || 400;
-      addRoad(num, num, num, ROAD.CURVE.NONE,-lastY()/segmentLength-1);
-    }
-	function addDownhillLeft(num) {
-      num = num || 400;
-      addRoad(num, num, num, -ROAD.CURVE.EASY, -lastY()/segmentLength-1);
-    }
-	function addDownhillRight(num) {
-      num = num || 400;
-      addRoad(num, num, num, ROAD.CURVE.EASY, -lastY()/segmentLength-1);
-    }
-    function resetRoad() {
-      segments = [];
-	  if(start_seg==0) addStraight(ROAD.LENGTH.SHORT);
-      if(start_seg==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(start_seg==2) addStraight(ROAD.LENGTH.LONG);
-	  if(start_seg==3) addLowRollingHills();
-	  if(start_seg==4) addSCurves();
-	  if(start_seg==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(start_seg==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(start_seg==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(start_seg==8) addBumps();
-	  if(start_seg==9) addHill(ROAD.LENGTH.MEDIUM,  ROAD.HILL.LOW);
-	  if(start_seg==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(start_seg==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(start_seg==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(start_seg==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(start_seg==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(start_seg==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(start_seg==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(start_seg==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(start_seg==18) addDownhill();
-	  if(start_seg==19) addDownhillLeft();
-	  if(start_seg==20) addDownhillRight();
-	  start_seglen=segments.length;
-	  console.log("Start seg "+start_seglen);
-	  if(bseg1==0) addStraight(ROAD.LENGTH.SHORT);
-      if(bseg1==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(bseg1==2) addStraight(ROAD.LENGTH.LONG);
-	  if(bseg1==3) addLowRollingHills();
-	  if(bseg1==4) addSCurves();
-	  if(bseg1==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg1==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg1==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg1==8) addBumps();
-	  if(bseg1==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(bseg1==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(bseg1==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(bseg1==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg1==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg1==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg1==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg1==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg1==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg1==18) addDownhill();
-	  if(bseg1==19) addDownhillLeft();
-	  if(bseg1==20) addDownhillRight();
-	  bseg1len=segments.length;
-	  console.log("bs 1 "+bseg1len);
-	  if(bseg2==0) addStraight(ROAD.LENGTH.SHORT);
-      if(bseg2==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(bseg2==2) addStraight(ROAD.LENGTH.LONG);
-	  if(bseg2==3) addLowRollingHills();
-	  if(bseg2==4) addSCurves();
-	  if(bseg2==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg2==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg2==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg2==8) addBumps();
-	  if(bseg2==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(bseg2==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(bseg2==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(bseg2==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg2==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg2==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg2==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg2==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg2==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg2==18) addDownhill();
-	  if(bseg2==19) addDownhillLeft();
-	  if(bseg2==20) addDownhillRight();
-	  bseg2len=segments.length;
-	  console.log("bs 2 "+bseg2len);
-	  if(bseg3==0) addStraight(ROAD.LENGTH.SHORT);
-      if(bseg3==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(bseg3==2) addStraight(ROAD.LENGTH.LONG);
-	  if(bseg3==3) addLowRollingHills();
-	  if(bseg3==4) addSCurves();
-	  if(bseg3==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg3==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg3==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg3==8) addBumps();
-	  if(bseg3==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(bseg3==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(bseg3==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(bseg3==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg3==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg3==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg3==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg3==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg3==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg3==18) addDownhill();
-	  if(bseg3==19) addDownhillLeft();
-	  if(bseg3==20) addDownhillRight();
-	  bseg3len=segments.length;
-	  console.log("bs 3 "+bseg3len);
-	  if(bseg4==0) addStraight(ROAD.LENGTH.SHORT);
-      if(bseg4==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(bseg4==2) addStraight(ROAD.LENGTH.LONG);
-	  if(bseg4==3) addLowRollingHills();
-	  if(bseg4==4) addSCurves();
-	  if(bseg4==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg4==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg4==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg4==8) addBumps();
-	  if(bseg4==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(bseg4==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(bseg4==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(bseg4==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg4==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg4==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg4==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg4==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg4==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg4==18) addDownhill();
-	  if(bseg4==19) addDownhillLeft();
-	  if(bseg4==20) addDownhillRight();
-	  bseg4len=segments.length;
-	  console.log("bs 4 "+bseg4len);
-	  if(bseg5==0) addStraight(ROAD.LENGTH.SHORT);
-      if(bseg5==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(bseg5==2) addStraight(ROAD.LENGTH.LONG);
-	  if(bseg5==3) addLowRollingHills();
-	  if(bseg5==4) addSCurves();
-	  if(bseg5==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg5==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg5==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg5==8) addBumps();
-	  if(bseg5==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(bseg5==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(bseg5==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(bseg5==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg5==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg5==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg5==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg5==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg5==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg5==18) addDownhill();
-	  if(bseg5==19) addDownhillLeft();
-	  if(bseg5==20) addDownhillRight();
-	  bseg5len=segments.length;
-	  console.log("bs 5 "+bseg5len);
-	  if(bseg6==0) addStraight(ROAD.LENGTH.SHORT);
-      if(bseg6==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(bseg6==2) addStraight(ROAD.LENGTH.LONG);
-	  if(bseg6==3) addLowRollingHills();
-	  if(bseg6==4) addSCurves();
-	  if(bseg6==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg6==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg6==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg6==8) addBumps();
-	  if(bseg6==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(bseg6==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(bseg6==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(bseg6==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg6==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg6==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg6==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg6==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg6==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg6==18) addDownhill();
-	  if(bseg6==19) addDownhillLeft();
-	  if(bseg6==20) addDownhillRight();
-	  bseg6len=segments.length;
-	  console.log("bs 6 "+bseg6len);
-	  if(bseg7==0) addStraight(ROAD.LENGTH.SHORT);
-      if(bseg7==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(bseg7==2) addStraight(ROAD.LENGTH.LONG);
-	  if(bseg7==3) addLowRollingHills();
-	  if(bseg7==4) addSCurves();
-	  if(bseg7==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg7==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg7==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg7==8) addBumps();
-	  if(bseg7==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(bseg7==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(bseg7==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(bseg7==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg7==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg7==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg7==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg7==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg7==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg7==18) addDownhill();
-	  if(bseg7==19) addDownhillLeft();
-	  if(bseg7==20) addDownhillRight();
-	  bseg7len=segments.length;
-	  console.log("bs 7 "+bseg7len);
-	  if(bseg8==0) addStraight(ROAD.LENGTH.SHORT);
-      if(bseg8==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(bseg8==2) addStraight(ROAD.LENGTH.LONG);
-	  if(bseg8==3) addLowRollingHills();
-	  if(bseg8==4) addSCurves();
-	  if(bseg8==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg8==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg8==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg8==8) addBumps();
-	  if(bseg8==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(bseg8==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(bseg8==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(bseg8==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg8==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg8==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg8==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg8==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg8==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg8==18) addDownhill();
-	  if(bseg8==19) addDownhillLeft();
-	  if(bseg8==20) addDownhillRight();
-	  bseg8len=segments.length;
-	  console.log("bs 8 "+bseg8len);
-	  if(bseg9==0) addStraight(ROAD.LENGTH.SHORT);
-      if(bseg9==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(bseg9==2) addStraight(ROAD.LENGTH.LONG);
-	  if(bseg9==3) addLowRollingHills();
-	  if(bseg9==4) addSCurves();
-	  if(bseg9==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg9==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg9==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg9==8) addBumps();
-	  if(bseg9==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(bseg9==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(bseg9==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(bseg9==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg9==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg9==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg9==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg9==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg9==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg9==18) addDownhill();
-	  if(bseg9==19) addDownhillLeft();
-	  if(bseg9==20) addDownhillRight();
-	  bseg9len=segments.length;
-	  console.log("bs 9 "+bseg9len);
-	  if(bseg10==0) addStraight(ROAD.LENGTH.SHORT);
-      if(bseg10==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(bseg10==2) addStraight(ROAD.LENGTH.LONG);
-	  if(bseg10==3) addLowRollingHills();
-	  if(bseg10==4) addSCurves();
-	  if(bseg10==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg10==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg10==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg10==8) addBumps();
-	  if(bseg10==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(bseg10==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(bseg10==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(bseg10==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg10==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg10==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg10==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(bseg10==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(bseg10==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(bseg10==18) addDownhill();
-	  if(bseg10==19) addDownhillLeft();
-	  if(bseg10==20) addDownhillRight();
-	  bseg10len=segments.length;
-	  console.log("bs 10 "+bseg10len);
-	  if(end_seg==0) addStraight(ROAD.LENGTH.SHORT);
-      if(end_seg==1) addStraight(ROAD.LENGTH.MEDIUM);
-	  if(end_seg==2) addStraight(ROAD.LENGTH.LONG);
-	  if(end_seg==3) addLowRollingHills();
-	  if(end_seg==4) addSCurves();
-	  if(end_seg==5) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(end_seg==6) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(end_seg==7) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(end_seg==8) addBumps();
-	  if(end_seg==9) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.LOW);
-	  if(end_seg==10) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.MEDIUM);
-	  if(end_seg==11) addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
-	  if(end_seg==12) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(end_seg==13) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(end_seg==14) addCurve(ROAD.LENGTH.MEDIUM, -ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(end_seg==15) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.EASY, ROAD.HILL.NONE);
-	  if(end_seg==16) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
-	  if(end_seg==17) addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.HARD, ROAD.HILL.NONE);
-	  if(end_seg==18) addDownhill();
-	  if(end_seg==19) addDownhillLeft();
-	  if(end_seg==20) addDownhillRight();
-	  end_seglen=segments.length;
-	  console.log("End seg "+end_seglen);
-	  console.log('End Road Height : '+ -lastY()/segmentLength);
-      resetSprites();
-      resetCars();
-      segments[findSegment(playerZ).index + 2].color = COLORS.START;
-     segments[findSegment(playerZ).index + 3].color = COLORS.START;
-      for(var n = 0 ; n < rumbleLength ; n++)
-        segments[segments.length-1-n].color = COLORS.FINISH;
-      trackLength = segments.length * segmentLength;
-    }
-     function resetSprites() {
-       var n, i;
-	   var side, sprite, offset;
-	  for(n = 50 ; n<(start_seglen-50); n += 4 + Math.floor(n/100)) {
-        addSprite(n, SPRITES.PALM_TREE, 1.0 + Math.random()*2);
-        addSprite(n, SPRITES.PALM_TREE,   -1 - Math.random()*2);
-      }
-     if(start_seg_side==0 && start_seg_bb!=0) {
-		 for(n=10;n<(start_seglen-50);n+=50){addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);}//l
-	 }
-	 if(start_seg_side==1 && start_seg_bb!=0){
-		 for(n=10;n<(start_seglen-50);n+=50){addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);}//l
-	 }
-	  if(start_seg_side==2 && start_seg_bb!=0){
-	 for(n=10;n<(start_seglen-50);n+=50){addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);}
-	 }
-	  if(start_seg_side==0 && start_seg_plts!=0){
-	      var side, sprite, offset;
-      for(n = 20 ; n < (start_seglen-50) ; n += 100) {
-        side      = Util.randomChoice([-1, -1]);
-        for(i = 0 ; i < 20 ; i++) {
-          sprite = Util.randomChoice(SPRITES.PLANTS);
-          offset = side * (1.5 + Math.random());
-          addSprite(n + Util.randomInt(0, 50), sprite, offset);
-        }
-      }
-	 }
-	if(start_seg_side==1 && start_seg_plts!=0){
-	      var side, sprite, offset;
-      for(n = 20 ; n < (start_seglen-50) ; n += 100) {
-        side      = Util.randomChoice([1, 1]);
-        for(i = 0 ; i < 20 ; i++) {
-          sprite = Util.randomChoice(SPRITES.PLANTS);
-          offset = side * (1.5 + Math.random());
-          addSprite(n + Util.randomInt(0, 50), sprite, offset);
-        }
-      }
-	 }
-	 if(start_seg_side==2 && start_seg_plts!=0){
-	      var sprite;
-      for(n = 20 ; n < (start_seglen-50) ; n += 100) {
-        for(i = 0 ; i < 20 ; i++) {
-          sprite = Util.randomChoice(SPRITES.PLANTS);
-          addSprite(n + Util.randomInt(0, 50), sprite, -1);
-		  addSprite(n + Util.randomInt(0, 50), sprite, 1);
-        }
-      }
-	 }
-	 if(start_seg_side==0 && start_seg_misc==1){
-      for(n = 20 ; n < (start_seglen-50) ; n += 3) {
-          sprite = SPRITES.CROPS;
-          addSprite(n , sprite, -1.1);
-      }
-	 }
-	 if(start_seg_side==1 && start_seg_misc==1){
-	     for(n = 20 ; n < (start_seglen-50) ; n += 3) {
-        for(i = 0 ; i < 50 ; i++) {
-          sprite = SPRITES.CROPS;
-          addSprite(n + Util.randomInt(0, 50), sprite, 1.1);
-		}
-      }
-	 }
-	if(start_seg_side==2 && start_seg_misc==1){
-      for(n = 20 ; n < (start_seglen-50) ; n += 3) {
-          sprite = SPRITES.CROPS;
-          addSprite(n , sprite, -1.1);
-		  addSprite(n , sprite, 1.1);
-      }
-	 }
-	 if(start_seg_side==0 && start_seg_misc==2){
-	    for(n = 20 ; n < (start_seglen) ; n += 5) {
-         addSprite(n,     SPRITES.COLUMN, -1.1);
-      }
-	 }
-	if(start_seg_side==1 && start_seg_misc==2){
-	    for(n = 20 ; n < (start_seglen) ; n += 5) {
-         addSprite(n,     SPRITES.COLUMN, 1.1);
-      }
-	 }
-	if(start_seg_side==2 && start_seg_misc==2){
-	    for(n = 20 ; n < (start_seglen) ; n += 5) {
-         addSprite(n,     SPRITES.COLUMN, 1.1);
-		 addSprite(n,     SPRITES.COLUMN, -1.1);
-      }
-	 }
-	 if(start_seg_side==0 && start_seg_misc==3){
-      for(n = 20 ; n < (start_seglen) ; n += 5) {
-         addSprite(n,     SPRITES.COLUMN2, -1.1);//g
-       }
-	 }
-	 if(start_seg_side==1 && start_seg_misc==3){
-      for(n = 20 ; n < (start_seglen) ; n += 5) {
-         addSprite(n,     SPRITES.COLUMN2, 1.1);//d
-      }
-	 }
-	if(start_seg_side==2 && start_seg_misc==3){
-      for(n = 20 ; n < (start_seglen) ; n += 5) {
-         addSprite(n,     SPRITES.COLUMN2, 1.1);// des deux côtés !
-         addSprite(n,     SPRITES.COLUMN2, -1.1);
-      }
-	 }
-	switch (bseg1_side) {
-    case 0:
-		if(bseg1_bb!=0){
-			for(n = start_seglen ; n < bseg1len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(bseg1_bb!=0){
-			for(n = start_seglen ; n < bseg1len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(bseg1_bb!=0){
-        for(n = start_seglen ; n < bseg1len ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-	switch (bseg1_side) {
-	case 0:
-		 if(bseg1_plts!=0){
-		  for(n = start_seglen ; n < bseg1len ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(bseg1_plts!=0){
-         for(n = start_seglen ; n < bseg1len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(bseg1_plts!=0){
-		for(n = start_seglen ; n < bseg1len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (bseg1_side) {
-	case 0:
-		 if(bseg1_misc==1){
-		  for(n = start_seglen ; n < bseg1len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(bseg1_misc==2){
-		    for(n = start_seglen ; n < bseg1len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(bseg1_misc==3){
-		  for(n = start_seglen ; n < bseg1len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(bseg1_misc==1){
-		  for(n = start_seglen ; n < bseg1len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg1_misc==2){
-		    for(n = start_seglen ; n < bseg1len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg1_misc==3){
-		  for(n = start_seglen ; n < bseg1len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-				 if(bseg1_misc==1){
-		  for(n = start_seglen ; n < bseg1len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg1_misc==2){
-		    for(n = start_seglen ; n < bseg1len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg1_misc==3){
-		  for(n = start_seglen ; n < bseg1len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-switch (bseg2_side) {
-    case 0:
-		if(bseg2_bb!=0){
-			for(n = bseg1len ; n < bseg2len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(bseg2_bb!=0){
-			for(n = bseg1len ; n < bseg2len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(bseg2_bb!=0){
-        for(n = bseg1len ; n < bseg2len ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-	switch (bseg2_side) {
-	case 0:
-		 if(bseg2_plts!=0){
-		  for(n = bseg1len ; n < bseg2len ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(bseg2_plts!=0){
-         for(n = bseg1len ; n < bseg2len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(bseg2_plts!=0){
-		for(n = bseg1len ; n < bseg2len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (bseg2_side) {
-	case 0:
-		 if(bseg2_misc==1){
-		  for(n = bseg1len ; n < bseg2len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(bseg2_misc==2){
-		    for(n = bseg1len ; n < bseg2len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(bseg2_misc==3){
-		  for(n = bseg1len ; n < bseg2len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(bseg2_misc==1){
-		  for(n = bseg1len ; n < bseg2len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg2_misc==2){
-		    for(n = bseg1len ; n < bseg2len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg2_misc==3){
-		  for(n = bseg1len ; n < bseg2len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-				 if(bseg2_misc==1){
-		  for(n = bseg1len ; n < bseg2len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg2_misc==2){
-		    for(n = bseg1len ; n < bseg2len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg2_misc==3){
-		  for(n = bseg1len ; n < bseg2len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-switch (bseg3_side) {
-    case 0:
-		if(bseg3_bb!=0){
-			for(n = bseg2len ; n < bseg3len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(bseg3_bb!=0){
-			for(n = bseg2len ; n < bseg3len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(bseg3_bb!=0){
-        for(n = bseg2len ; n < bseg3len ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-	switch (bseg3_side) {
-	case 0:
-		 if(bseg3_plts!=0){
-		  for(n = bseg2len ; n < bseg3len ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(bseg3_plts!=0){
-         for(n = bseg2len ; n < bseg3len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(bseg3_plts!=0){
-		for(n = bseg2len ; n < bseg3len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (bseg3_side) {
-	case 0:
-		 if(bseg3_misc==1){
-		  for(n = bseg2len ; n < bseg3len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(bseg3_misc==2){
-		    for(n = bseg2len ; n < bseg3len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(bseg3_misc==3){
-		  for(n = bseg2len ; n < bseg3len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(bseg3_misc==1){
-		  for(n = bseg12en ; n < bseg3len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg3_misc==2){
-		    for(n = bseg2len ; n < bseg3len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg3_misc==3){
-		  for(n = bseg2len ; n < bseg3len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-				 if(bseg3_misc==1){
-		  for(n = bseg2len ; n < bseg3len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg3_misc==2){
-		    for(n = bseg2len ; n < bseg3len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg3_misc==3){
-		  for(n = bseg2len ; n < bseg3len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-switch (bseg4_side) {
-    case 0:
-		if(bseg4_bb!=0){
-			for(n = bseg3len ; n < bseg4len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(bseg4_bb!=0){
-			for(n = bseg3len ; n < bseg4len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(bseg4_bb!=0){
-        for(n = bseg3len ; n < bseg4len ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-	switch (bseg4_side) {
-	case 0:
-		 if(bseg4_plts!=0){
-		  for(n = bseg3len ; n < bseg4len ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(bseg4_plts!=0){
-         for(n = bseg3len ; n < bseg4len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(bseg4_plts!=0){
-		for(n = bseg3len ; n < bseg4len; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (bseg4_side) {
-	case 0:
-		 if(bseg4_misc==1){
-		  for(n = bseg3len ; n < bseg4len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(bseg4_misc==2){
-		    for(n = bseg3len ; n < bseg4len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(bseg4_misc==3){
-		  for(n = bseg3len ; n < bseg4len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(bseg4_misc==1){
-		  for(n = bseg3len ; n < bseg4len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg4_misc==2){
-		    for(n = bseg3len ; n < bseg4len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg4_misc==3){
-		  for(n = bseg3len ; n < bseg4len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-				 if(bseg4_misc==1){
-		  for(n = bseg3len ; n < bseg4len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg4_misc==2){
-		    for(n = bseg3len ; n < bseg4len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg4_misc==3){
-		  for(n = bseg3len ; n < bseg4len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-switch (bseg5_side) {
-    case 0:
-		if(bseg5_bb!=0){
-			for(n = bseg4len ; n < bseg5len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(bseg5_bb!=0){
-			for(n = bseg4len ; n < bseg5len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(bseg5_bb!=0){
-        for(n = bseg4len ; n < bseg5len ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-	switch (bseg5_side) {
-	case 0:
-		 if(bseg5_plts!=0){
-		  for(n = bseg4len ; n < bseg5len ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(bseg5_plts!=0){
-         for(n = bseg4len ; n < bseg5len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(bseg5_plts!=0){
-		for(n = bseg4len ; n < bseg5len; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (bseg5_side) {
-	case 0:
-		 if(bseg5_misc==1){
-		  for(n = bseg4len ; n < bseg5len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(bseg5_misc==2){
-		    for(n = bseg4len ; n < bseg5len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(bseg5_misc==3){
-		  for(n = bseg4len ; n < bseg5len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(bseg5_misc==1){
-		  for(n = bseg4len ; n < bseg5len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg5_misc==2){
-		    for(n = bseg4len ; n < bseg5len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg5_misc==3){
-		  for(n = bseg4len ; n < bseg5len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-				 if(bseg5_misc==1){
-		  for(n = bseg4len ; n < bseg5len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg5_misc==2){
-		    for(n = bseg4len ; n < bseg5len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg5_misc==3){
-		  for(n = bseg4len ; n < bseg5len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-switch (bseg6_side) {
-    case 0:
-		if(bseg6_bb!=0){
-			for(n = bseg5len ; n < bseg6len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(bseg6_bb!=0){
-			for(n = bseg5len ; n < bseg6len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(bseg6_bb!=0){
-        for(n = bseg5len ; n < bseg6len ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-	switch (bseg6_side) {
-	case 0:
-		 if(bseg6_plts!=0){
-		  for(n = bseg5len ; n < bseg6len ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(bseg6_plts!=0){
-         for(n = bseg5len ; n < bseg6len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(bseg6_plts!=0){
-		for(n = bseg5len ; n < bseg6len; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (bseg6_side) {
-	case 0:
-		 if(bseg6_misc==1){
-		  for(n = bseg5len ; n < bseg6len; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(bseg6_misc==2){
-		    for(n = bseg5len ; n < bseg6len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(bseg6_misc==3){
-		  for(n = bseg5len ; n < bseg6len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(bseg6_misc==1){
-		  for(n = bseg5len ; n < bseg6len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg6_misc==2){
-		    for(n = bseg5len ; n < bseg6len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg6_misc==3){
-		  for(n = bseg5len ; n < bseg6len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-		 if(bseg6_misc==1){
-		  for(n = bseg5len ; n < bseg6len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg6_misc==2){
-		    for(n = bseg5len ; n < bseg6len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg6_misc==3){
-		  for(n = bseg5len ; n < bseg6len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-switch (bseg7_side) {
-    case 0:
-		if(bseg7_bb!=0){
-			for(n = bseg6len ; n < bseg7len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(bseg7_bb!=0){
-			for(n = bseg6len ; n < bseg7len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(bseg7_bb!=0){
-        for(n = bseg6len ; n < bseg7len ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-	switch (bseg7_side) {
-	case 0:
-		 if(bseg7_plts!=0){
-		  for(n = bseg6len ; n < bseg7len ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(bseg7_plts!=0){
-         for(n = bseg6len ; n < bseg7len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(bseg7_plts!=0){
-		for(n = bseg6len ; n < bseg7len; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (bseg7_side) {
-	case 0:
-		 if(bseg7_misc==1){
-		  for(n = bseg6len ; n < bseg7len; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(bseg7_misc==2){
-		    for(n = bseg6len ; n < bseg7len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(bseg7_misc==3){
-		  for(n = bseg6len ; n < bseg7len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(bseg7_misc==1){
-		  for(n = bseg6len ; n < bseg7len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg7_misc==2){
-		    for(n = bseg6len ; n < bseg7len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg7_misc==3){
-		  for(n = bseg6len ; n < bseg7len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-		 if(bseg7_misc==1){
-		  for(n = bseg6len ; n < bseg7len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg7_misc==2){
-		    for(n = bseg6len ; n < bseg7len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg7_misc==3){
-		  for(n = bseg6len ; n < bseg7len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-switch (bseg8_side) {
-    case 0:
-		if(bseg8_bb!=0){
-			for(n = bseg7len ; n < bseg8len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(bseg8_bb!=0){
-			for(n = bseg7len ; n < bseg8len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(bseg8_bb!=0){
-        for(n = bseg7len ; n < bseg8len ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-	switch (bseg8_side) {
-	case 0:
-		 if(bseg8_plts!=0){
-		  for(n = bseg7len ; n < bseg8len ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(bseg8_plts!=0){
-         for(n = bseg7len ; n < bseg8len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(bseg8_plts!=0){
-		for(n = bseg7len ; n < bseg8len; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (bseg8_side) {
-	case 0:
-		 if(bseg8_misc==1){
-		  for(n = bseg7len ; n < bseg8len; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(bseg8_misc==2){
-		    for(n = bseg7len ; n < bseg8len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(bseg8_misc==3){
-		  for(n = bseg7len ; n < bseg8len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(bseg8_misc==1){
-		  for(n = bseg7len ; n < bseg8len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg8_misc==2){
-		    for(n = bseg7len ; n < bseg8len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg8_misc==3){
-		  for(n = bseg7len ; n < bseg8len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-		 if(bseg8_misc==1){
-		  for(n = bseg7len ; n < bseg8len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg8_misc==2){
-		    for(n = bseg7len ; n < bseg8len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg8_misc==3){
-		  for(n = bseg7len ; n < bseg8len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-switch (bseg9_side) {
-    case 0:
-		if(bseg9_bb!=0){
-			for(n = bseg8len ; n < bseg9len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(bseg9_bb!=0){
-			for(n = bseg8len ; n < bseg9len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(bseg9_bb!=0){
-        for(n = bseg8len ; n < bseg9len ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-	switch (bseg9_side) {
-	case 0:
-		 if(bseg9_plts!=0){
-		  for(n = bseg8len ; n < bseg9len ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(bseg9_plts!=0){
-         for(n = bseg8len ; n < bseg9len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(bseg9_plts!=0){
-		for(n = bseg8len ; n < bseg9len; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (bseg9_side) {
-	case 0:
-		 if(bseg9_misc==1){
-		  for(n = bseg8len ; n < bseg9len; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(bseg9_misc==2){
-		    for(n = bseg8len ; n < bseg9len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(bseg9_misc==3){
-		  for(n = bseg8len ; n < bseg9len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(bseg9_misc==1){
-		  for(n = bseg8len ; n < bseg9len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg9_misc==2){
-		    for(n = bseg8len ; n < bseg9len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg9_misc==3){
-		  for(n = bseg8len ; n < bseg9len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-		 if(bseg9_misc==1){
-		  for(n = bseg8len ; n < bseg9len ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg9_misc==2){
-		    for(n = bseg8len ; n < bseg9len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg9_misc==3){
-		  for(n = bseg8len ; n < bseg9len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-switch (bseg10_side) {
-    case 0:
-		if(bseg10_bb!=0){
-			for(n = bseg9len ; n < bseg10len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(bseg10_bb!=0){
-			for(n = bseg9len ; n < bseg10len ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(bseg10_bb!=0){
-        for(n = bseg9len ; n < bseg10len ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-	switch (bseg10_side) {
-	case 0:
-		 if(bseg10_plts!=0){
-		  for(n = bseg9len ; n < bseg10len ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(bseg10_plts!=0){
-         for(n = bseg9len ; n < bseg10len ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(bseg10_plts!=0){
-		for(n = bseg9len ; n < bseg10len; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (bseg10_side) {
-	case 0:
-		 if(bseg10_misc==1){
-		  for(n = bseg9len ; n < bseg10len; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(bseg10_misc==2){
-		    for(n = bseg9len ; n < bseg10len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(bseg10_misc==3){
-		  for(n = bseg9len ; n < bseg10len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(bseg10_misc==1){
-		  for(n = bseg9len ; n < bseg10len ; n += 5 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg10_misc==2){
-		    for(n = bseg9len ; n < bseg10len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg10_misc==3){
-		  for(n = bseg9len ; n < bseg10len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-		 if(bseg10_misc==1){
-		  for(n = bseg9len ; n < bseg10len ; n += 5 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(bseg10_misc==2){
-		    for(n = bseg9len ; n < bseg10len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(bseg10_misc==3){
-		  for(n = bseg9len ; n < bseg10len ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-switch (end_seg_side) {
-    case 0:
-		if(end_seg_bb!=0){
-			for(n = bseg10len ; n < end_seglen-lastY()/segmentLength-1 ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   }
-		}
-        break;
-    case 1:
-			if(end_seg_bb!=0){
-			for(n = bseg10len ; n < end_seglen-lastY()/segmentLength-1 ; n += 50 ) {
-		  addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-		break;
-    case 2:
-		if(end_seg_bb!=0){
-        for(n = bseg10len ; n < end_seglen-lastY()/segmentLength-1 ; n += 50 ) {
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), -1);
-		   addSprite(n + Util.randomInt(0, 50), Util.randomChoice(SPRITES.BILLBOARDS), 1);
-		   }
-		}
-	    break;
- }
-switch (end_seg_side) {
-	case 0:
-		 if(end_seg_plts!=0){
-		  for(n = bseg10len ; n < end_seglen-5 ; n += 5 ) {
-          addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		 }
-		break;
-    case 1:
-		if(end_seg_plts!=0){
-         for(n = bseg10len ; n < end_seglen-5 ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
-    case 2:
-		if(end_seg_plts!=0){
-		for(n = bseg10len ; n < end_seglen-5 ; n += 5 ) {
-           addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), 1* (1.0 + Math.random()));
-		   addSprite(n + Util.randomInt(0, 5), Util.randomChoice(SPRITES.PLANTS), -1* (1.0 + Math.random()));
-       	   }
-		}
-        break;
- }
-	switch (end_seg_side) {
-	case 0:
-		 if(end_seg_misc==1){
-		  for(n = bseg10len ; n < end_seglen-3 ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1)
-       	   }
-		 }
-		if(end_seg_misc==2){
-		    for(n = bseg10len ; n < end_seglen-3; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-       	   }
-		}
-		if(end_seg_misc==3){
-		  for(n = bseg10len ; n < end_seglen-3 ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-       	   }
-		 }
-	  break;
-    case 1:
-		 if(end_seg_misc==1){
-		  for(n = bseg10len ; n < end_seglen-3 ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(end_seg_misc==2){
-		    for(n = bseg10len ; n < end_seglen-5 ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(end_seg_misc==3){
-		  for(n = bseg10len ; n < end_seglen-5 ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
-    case 2:
-				 if(end_seg_misc==1){
-		  for(n = bseg10len ; n < end_seglen-3 ; n += 3 ) {
-          addSprite(n,     SPRITES.CROPS, -1.1);
-		  addSprite(n,     SPRITES.CROPS, 1.1)
-       	   }
-		 }
-		if(end_seg_misc==2){
-		    for(n = bseg10len ; n < end_seglen-5 ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN, -1.1);
-			addSprite(n,     SPRITES.COLUMN, 1.1);
-       	   }
-		}
-		if(end_seg_misc==3){
-		  for(n = bseg10len ; n < end_seglen-5 ; n += 5 ) {
-			addSprite(n,     SPRITES.COLUMN2, -1.1);
-			addSprite(n,     SPRITES.COLUMN2, 1.1);
-       	   }
-		 }
-	  break;
- }
-	 console.log("fin sprite segment "+n);
-	}
-    function resetCars() {
-      cars = [];
-      var n, car, segment, offset, z, sprite, speed;
-      for (var n = 0 ; n < totalCars ; n++) {
-        offset = Math.random() * Util.randomChoice([-0.8, 0.8]);
-        z      = Math.floor(Math.random() * segments.length) * segmentLength;
-		sprite = Util.randomChoice(SPRITES.CARS);
-        speed  = maxSpeed/4 + Math.random() * maxSpeed/(sprite == SPRITES.SEMI ? 4 : 2);
-        car = { offset: offset, z: z, sprite: sprite, speed: speed };
-        segment = findSegment(car.z);
-        segment.cars.push(car);
-        cars.push(car);
-      }
-    }
-    function reset(options) {
-      options       = options || {};
-      gcanvas.width  = width  = Util.toInt(options.width,          width);
-      gcanvas.height = height = Util.toInt(options.height,         height);
-      lanes                  = Util.toInt(options.lanes,          lanes);
-      roadWidth              = Util.toInt(options.roadWidth,      roadWidth);
-      cameraHeight           = Util.toInt(options.cameraHeight,   cameraHeight);
-      drawDistance           = Util.toInt(options.drawDistance,   drawDistance);
-      fogDensity             = Util.toInt(options.fogDensity,     fogDensity);
-      fieldOfView            = Util.toInt(options.fieldOfView,    fieldOfView);
-      segmentLength          = Util.toInt(options.segmentLength,  segmentLength);
-      rumbleLength           = Util.toInt(options.rumbleLength,   rumbleLength);
-      cameraDepth            = 1 / Math.tan((fieldOfView/2) * Math.PI/180);
-      playerZ                = (cameraHeight * cameraDepth);
-      resolution             = height/480;// 480
-      if ((segments.length==0) || (options.segmentLength) || (options.rumbleLength))
-        resetRoad(); // only rebuild road when necessary
-    }
-function refreshTweakUI() {
-    }
-    var fps            = 60;                      // how many 'update' frames per second
-    var step           = 1/fps;                   // how long is each frame (in seconds)
-    var width          =1024;                    // logical gcanvas width
-    var height         =768;                    // logical canvas height
-    var centrifugal    = 0.3;                     // centrifugal force multiplier when going around curves
-    var offRoadDecel   = 0.99;                    // speed multiplier when off road (e.g. you lose 2% speed each update frame)
-    var skySpeed       = 0.001;                   // background sky layer scroll speed when going around curve (or up hill)
-    var hillSpeed      = 0.002;                   // background hill layer scroll speed when going around curve (or up hill)
-    var treeSpeed      = 0.003;                   // background tree layer scroll speed when going around curve (or up hill)
-    var skyOffset      = 0;                       // current sky scroll offset
-    var hillOffset     = 0;                       // current hill scroll offset
-    var treeOffset     = 0;                       // current tree scroll offset
-    var segments       = [];                      // array of road segments
-    var cars           = [];                      // array of cars on the road
-	var gcanvas= Dom.get('c2canvas');
-    var ctx; // ...and its drawing context
-    var background     = null;                    // our background image (loaded below)
-    var sprites        = null;                    // our spritesheet (loaded below)
-    var resolution     = null;                    // scaling factor to provide resolution independence (computed)
-    var roadWidth      = 2000;                    // actually half the roads width, easier math if the road spans from -roadWidth to +roadWidth
-    var segmentLength  = 200;                     // length of a single segment
-    var rumbleLength   = 3;                       // number of segments per red/white rumble strip
-    var trackLength    = null;                    // z length of entire track (computed)
-    var lanes          = 4;                       // number of lanes
-    var fieldOfView    = 100;                     // angle (degrees) for field of view
-    var cameraHeight   = 1000;                    // z height of camera
-    var cameraDepth    = null;                    // z distance camera is from screen (computed)
-    var drawDistance   = 300;                     // number of segments to draw
-    var playerX        = 0;                       // player x offset from center of road (-1 to 1 to stay independent of roadWidth)
-    var playerZ        = null;                    // player relative z distance from camera (computed)
-    var fogDensity     = 1;                       // exponential fog density
-    var position       = 0;                       // current camera Z position (add playerZ to get player's absolute Z position)
-    var speed          = 0;                       // current speed
-    var maxSpeed       = segmentLength/step;      // top speed (ensure we can't move more than 1 segment in a single frame to make collision detection easier)
-    var accel          =  maxSpeed/5;             // acceleration rate - tuned until it 'felt' right
-    var breaking       = -maxSpeed;               // deceleration rate when braking
-    var decel          = -maxSpeed/5;             // 'natural' deceleration rate when neither accelerating, nor braking
-    var offRoadDecel   = -maxSpeed/2;             // off road deceleration is somewhere in between
-    var offRoadLimit   =  maxSpeed/4;             // limit when off road deceleration no longer applies (e.g. you can always go at least this speed even when off road)
-    var totalCars      = 100;  //200                   // total number of cars on the road
-    var currentLapTime = 0;                       // current lap time
-    var lastLapTime    = null;                    // last lap time
-	var bouncefactor = 1;
-    var keyLeft        = false;
-    var keyRight       = false;
-    var keyFaster      = false;
-    var keySlower      = false;
-cr.plugins_.c2outrun = function(runtime)
-{
-	this.runtime = runtime;
-};
-(function ()
-{
-	var pluginProto = cr.plugins_.c2outrun.prototype;
-	pluginProto.Type = function(plugin)
-	{
-		this.plugin = plugin;
-		this.runtime = plugin.runtime;
-	};
-	var typeProto = pluginProto.Type.prototype;
-	typeProto.onCreate = function()
-	{
-	};
-	pluginProto.Instance = function(type)
-	{
-		this.type = type;
-		this.runtime = type.runtime;
-	};
-	var instanceProto = pluginProto.Instance.prototype;
-	var fxNames = [ "lighter",
-					"xor",
-					"copy",
-					"destination-over",
-					"source-in",
-					"destination-in",
-					"source-out",
-					"destination-out",
-					"source-atop",
-					"destination-atop"];
-	instanceProto.effectToCompositeOp = function(effect)
-	{
-		if (effect <= 0 || effect >= 11)
-			return "source-over";
-		return fxNames[effect - 1];	// not including "none" so offset by 1
-	};
-	instanceProto.updateBlend = function(effect)
-	{
-		var gl = this.runtime.gl;
-		if (!gl)
-			return;
-		this.srcBlend = gl.ONE;
-		this.destBlend = gl.ONE_MINUS_SRC_ALPHA;
-		switch (effect) {
-		case 1:		// lighter (additive)
-			this.srcBlend = gl.ONE;
-			this.destBlend = gl.ONE;
-			break;
-		case 2:		// xor
-			break;	// todo
-		case 3:		// copy
-			this.srcBlend = gl.ONE;
-			this.destBlend = gl.ZERO;
-			break;
-		case 4:		// destination-over
-			this.srcBlend = gl.ONE_MINUS_DST_ALPHA;
-			this.destBlend = gl.ONE;
-			break;
-		case 5:		// source-in
-			this.srcBlend = gl.DST_ALPHA;
-			this.destBlend = gl.ZERO;
-			break;
-		case 6:		// destination-in
-			this.srcBlend = gl.ZERO;
-			this.destBlend = gl.SRC_ALPHA;
-			break;
-		case 7:		// source-out
-			this.srcBlend = gl.ONE_MINUS_DST_ALPHA;
-			this.destBlend = gl.ZERO;
-			break;
-		case 8:		// destination-out
-			this.srcBlend = gl.ZERO;
-			this.destBlend = gl.ONE_MINUS_SRC_ALPHA;
-			break;
-		case 9:		// source-atop
-			this.srcBlend = gl.DST_ALPHA;
-			this.destBlend = gl.ONE_MINUS_SRC_ALPHA;
-			break;
-		case 10:	// destination-atop
-			this.srcBlend = gl.ONE_MINUS_DST_ALPHA;
-			this.destBlend = gl.SRC_ALPHA;
-			break;
-		}
-	};
-	instanceProto.onCreate = function()
-	{
-		this.visible = (this.properties[78] === 0);		// last + 1--- 0=visible, 1=invisible
-		this.updateBlend(this.properties[0]);
-		this.canvas = document.createElement('canvas');
-		ctx = this.canvas.getContext('2d');
-		lanes=(this.properties[1]);
-		roadWidth=(this.properties[2]);
-		cameraHeight=(this.properties[3]);
-		drawDistance=(this.properties[4]);
-		fieldOfView=(this.properties[5]);
-		fogDensity=(this.properties[6]);
-		totalCars=(this.properties[7]);
-		COLORS.START.road=(this.properties[8]);
-		COLORS.START.grass=(this.properties[8]);
-		COLORS.START.rumble=(this.properties[8]);
-		COLORS.FINISH.road=(this.properties[9]);
-		COLORS.FINISH.grass=(this.properties[9]);
-		COLORS.FINISH.rumble=(this.properties[9]);
-		COLORS.FOG=(this.properties[10]);
-		COLORS.LIGHT.road=(this.properties[11]);
-		COLORS.DARK.road=(this.properties[12]);
-		COLORS.LIGHT.grass=(this.properties[13]);
-		COLORS.DARK.grass=(this.properties[14]);
-		COLORS.LIGHT.rumble=(this.properties[15]);
-		COLORS.DARK.rumble=(this.properties[16]);
-		COLORS.LIGHT.lane=(this.properties[17]);
-	    start_seg=(this.properties[18]);
-		bseg1=(this.properties[19]);
-		bseg2=(this.properties[20]);
-		bseg3=(this.properties[21]);
-		bseg4=(this.properties[22]);
-		bseg5=(this.properties[23]);
-		bseg6=(this.properties[24]);
-		bseg7=(this.properties[25]);
-		bseg8=(this.properties[26]);
-		bseg9=(this.properties[27]);
-		bseg10=(this.properties[28]);
-		end_seg=(this.properties[29]);
-		start_seg_side=(this.properties[30]);
-		start_seg_bb=(this.properties[31]);
-		start_seg_plts=(this.properties[32]);
-		start_seg_misc=(this.properties[33]);
-		bseg1_side=(this.properties[34]);
-		bseg1_bb=(this.properties[35]);
-		bseg1_plts=(this.properties[36]);
-		bseg1_misc=(this.properties[37]);
-		bseg2_side=(this.properties[38]);
-		bseg2_bb=(this.properties[39]);
-		bseg2_plts=(this.properties[40]);
-		bseg2_misc=(this.properties[41]);
-		bseg3_side=(this.properties[42]);
-		bseg3_bb=(this.properties[43]);
-		bseg3_plts=(this.properties[44]);
-		bseg3_misc=(this.properties[45]);
-		bseg4_side=(this.properties[46]);
-		bseg4_bb=(this.properties[47]);
-		bseg4_plts=(this.properties[48]);
-		bseg4_misc=(this.properties[49]);
-		bseg5_side=(this.properties[50]);
-		bseg5_bb=(this.properties[51]);
-		bseg5_plts=(this.properties[52]);
-		bseg5_misc=(this.properties[53]);
-		bseg6_side=(this.properties[54]);
-		bseg6_bb=(this.properties[55]);
-		bseg6_plts=(this.properties[56]);
-		bseg6_misc=(this.properties[57]);
-		bseg7_side=(this.properties[58]);
-		bseg7_bb=(this.properties[59]);
-		bseg7_plts=(this.properties[60]);
-		bseg7_misc=(this.properties[61]);
-		bseg8_side=(this.properties[62]);
-		bseg8_bb=(this.properties[63]);
-		bseg8_plts=(this.properties[64]);
-		bseg8_misc=(this.properties[65]);
-		bseg9_side=(this.properties[66]);
-		bseg9_bb=(this.properties[67]);
-		bseg9_plts=(this.properties[68]);
-		bseg9_misc=(this.properties[69]);
-		bseg10_side=(this.properties[70]);
-		bseg10_bb=(this.properties[71]);
-		bseg10_plts=(this.properties[72]);
-		bseg10_misc=(this.properties[73]);
-		end_seg_side=(this.properties[74]);
-		end_seg_bb=(this.properties[75]);
-		end_seg_plts=(this.properties[76]);
-		end_seg_misc=(this.properties[77]);
-	 Game.run({
-      render: render, update: update, step:step,
-      images: ["background2", "sprites"],
-      keys: [
-        { keys: [KEY.LEFT,  KEY.A], mode: 'down', action: function() { keyLeft   = true;  } },
-        { keys: [KEY.RIGHT, KEY.D], mode: 'down', action: function() { keyRight  = true;  } },
-        { keys: [KEY.UP,    KEY.W], mode: 'down', action: function() { keyFaster = true;  } },
-        { keys: [KEY.DOWN,  KEY.S], mode: 'down', action: function() { keySlower = true;  } },
-        { keys: [KEY.LEFT,  KEY.A], mode: 'up',   action: function() { keyLeft   = false; } },
-        { keys: [KEY.RIGHT, KEY.D], mode: 'up',   action: function() { keyRight  = false; } },
-        { keys: [KEY.UP,    KEY.W], mode: 'up',   action: function() { keyFaster = false; } },
-        { keys: [KEY.DOWN,  KEY.S], mode: 'up',   action: function() { keySlower = false; } }
-      ],
-      ready: function(images) {
-         background = images[0];
-		 sprites    = images[1];
-         reset();
-      }
-    });
-		gcanvas=this.canvas;
-	 	this.runtime.tickMe(this);
-	};
-instanceProto.tick = function (){
-			var dt = this.runtime.getDt(this);
-			this.ctx=this.ctx;
-			var w =this.canvas.width;
-			var h=this.canvas.height;
-			var xsp;
-		   this.runtime.redraw = true;
-		   this.update_tex = true;
-};
-	instanceProto.onDestroy = function ()
-	{
-	};
-	instanceProto.saveToJSON = function ()
-	{
-		return {
-            "canvas_w":this.canvas.width,
-            "canvas_h":this.canvas.height,
-            "image":this.ctx.getImageData(0,0,this.canvas.width,this.canvas.height).data
-		};
-	};
-	instanceProto.loadFromJSON = function (o)
-	{
-        var canvasWidth = this.canvas.width = o["canvas_w"];
-        var canvasHeight = this.canvas.height = o["canvas_h"];
-        var data = this.ctx.getImageData(0,0,this.canvas.width,this.canvas.height).data;
-        for (var y = 0; y < canvasHeight; ++y) {
-            for (var x = 0; x < canvasWidth; ++x) {
-                var index = (y * canvasWidth + x)*4;
-                for (var c = 0; c < 4; ++c)
-                data[index+c] = o["image"][index+c];
-            }
-        }
-	};
-	instanceProto.draw_instances = function (instances, ctx)
-    {
-        for(var x in instances)
-        {
-            if(instances[x].visible==false && this.runtime.testOverlap(this, instances[x])== false)
-                continue;
-            ctx.save();
-            ctx.scale(this.canvas.width/this.width, this.canvas.height/this.height);
-            ctx.rotate(-this.angle);
-            ctx.translate(-this.bquad.tlx, -this.bquad.tly);
-            ctx.globalCompositeOperation = instances[x].compositeOp;//rojo
-            if (instances[x].type.pattern !== undefined && instances[x].type.texture_img !== undefined) {
-                instances[x].pattern = ctx.createPattern(instances[x].type.texture_img, "repeat");
-            }
-            instances[x].draw(ctx);
-            ctx.restore();
-        }
-    };
-	instanceProto.draw = function(ctx)
-	{
-		ctx.save();
-		ctx.globalAlpha = this.opacity;
-		ctx.globalCompositeOperation = this.compositeOp;
-		var myx = this.x;
-		var myy = this.y;
-		if (this.runtime.pixel_rounding)
-		{
-			myx = Math.round(myx);
-			myy = Math.round(myy);
-		}
-		ctx.translate(myx, myy);
-		ctx.rotate(this.angle);
-		ctx.drawImage(this.canvas,
-						  0 - (this.hotspotX * this.width),
-						  0 - (this.hotspotY * this.height),
-						  this.width,
-						  this.height);
-		ctx.restore();
-	};
-	instanceProto.drawGL = function(glw)
-	{
-		glw.setBlend(this.srcBlend, this.destBlend);
-        if (this.update_tex)
-        {
-            if (this.tex)
-                glw.deleteTexture(this.tex);
-            this.tex=glw.loadTexture(this.canvas, false, this.runtime.linearSampling);
-            this.update_tex = false;
-        }
-		glw.setTexture(this.tex);
-		glw.setOpacity(this.opacity);
-		var q = this.bquad;
-		if (this.runtime.pixel_rounding)
-		{
-			var ox = Math.round(this.x) - this.x;
-			var oy = Math.round(this.y) - this.y;
-			glw.quad(q.tlx + ox, q.tly + oy, q.trx + ox, q.try_ + oy, q.brx + ox, q.bry + oy, q.blx + ox, q.bly + oy);
-		}
-		else
-			glw.quad(q.tlx, q.tly, q.trx, q.try_, q.brx, q.bry, q.blx, q.bly);
-	};
-	pluginProto.cnds = {};
-	var cnds = pluginProto.cnds;
-	function Acts() {};
-	pluginProto.acts = new Acts();
-	 Acts.prototype.SetEffect = function (effect)
-	 {
-		 this.compositeOp = this.effectToCompositeOp(effect);
-		 this.runtime.redraw = true;
-         this.update_tex = true;
-	 };
-	Acts.prototype.finish_track = function ()
-	{
-		speed = Util.accelerate(speed, -maxSpeed, 0);
-		keyFaster=false;
-		currentLapTime=0;
-	};
-	Acts.prototype.SetYSpeed = function (spd)
-	{
-	y_speed=spd;
-	};
-	pluginProto.exps = {};
-	var exps = pluginProto.exps;
-	exps.car_spd = function (ret)
-	{
-		ret.set_int(5 * Math.round(speed/500));
-	};
-	exps.car_pos = function (ret)
-	{
-	   	ret.set_int(position/segmentLength);
-	};
-	exps.seg_length = function (ret)
-	{
-	  ret.set_int(segments.length);
-	};
-	exps.cur_lt = function (ret)
-	{
-		ret.set_any(formatTime(currentLapTime));
-	};
-	exps.last_lt = function (ret)
-	{
-		ret.set_any(formatTime(lastLapTime));
-	};
-	exps.player_x = function (ret)
-	{
-		ret.set_float(playerX);
-	};
-	exps.lap_counter = function (ret)
-	{
-	  ret.set_int(lapcounter);
-	};
-	exps.max_speed = function (ret)
-	{
-	  ret.set_int(speed/100);
-	};
-exps.endseg_height = function (ret)
-	{
-	  ret.set_any(lastY()/segmentLength);
-	};
-    exps.AsJSON = function(ret)
-    {
-        ret.set_string( JSON.stringify({
-			"c2array": true,
-			"size": [1, 1, this.canvas.width * this.canvas.height * 4],
-			"data": [[this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height).data]]
-		}));
-    };
-}());
-;
-;
 cr.plugins_.gamepad = function(runtime)
 {
 	this.runtime = runtime;
@@ -35847,6 +33289,205 @@ cr.behaviors.Rex_MoveTo = function(runtime)
 }());
 ;
 ;
+cr.behaviors.Rex_Platform_MoveTo = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var behaviorProto = cr.behaviors.Rex_Platform_MoveTo.prototype;
+	behaviorProto.Type = function(behavior, objtype)
+	{
+		this.behavior = behavior;
+		this.objtype = objtype;
+		this.runtime = behavior.runtime;
+	};
+	var behtypeProto = behaviorProto.Type.prototype;
+	behtypeProto.onCreate = function()
+	{
+	};
+	behaviorProto.Instance = function(type, inst)
+	{
+		this.type = type;
+		this.behavior = type.behavior;
+		this.inst = inst;				// associated object instance to modify
+		this.runtime = type.runtime;
+	};
+	var behinstProto = behaviorProto.Instance.prototype;
+	behinstProto.onCreate = function()
+	{
+	    this.platformBehaviorInst = null;
+        this.activated = (this.properties[0] == 1);
+        this.isMoving = false;
+        this.target = {"m":0,       // 0: x mode , 1: distance mode
+                       "dir": 0, // 0:left , 1: right
+                       "x":0,
+                       "y":0,
+                       "d":0,
+                       "ds":0 };
+        this.isMyCall = false;
+	};
+	behinstProto.getPlatformBehaviorInst = function ()
+    {
+        if (this.platformBehaviorInst != null)
+            return this.platformBehaviorInst;
+	    if (!cr.behaviors.Platform)
+		{
+;
+	    }
+		var behavior_insts = this.inst.behavior_insts;
+		var i, len=behavior_insts.length;
+		for (i=0; i<len; i++)
+		{
+			if (behavior_insts[i] instanceof cr.behaviors.Platform.prototype.Instance)
+			{
+			    this.platformBehaviorInst = behavior_insts[i];
+				return this.platformBehaviorInst;
+	        }
+		}
+;
+    };
+	behinstProto.move = function (dir)   // 0: left , 1: right
+    {
+        var platformBehaviorInst = this.getPlatformBehaviorInst();
+        cr.behaviors.Platform.prototype.acts.SimulateControl.call(platformBehaviorInst, dir);
+    };
+    behinstProto.tick = function ()
+	{
+        if ( (!this.activated) || (!this.isMoving) )
+        {
+            return;
+        }
+	    var is_hit_target = false;
+        if (this.target["m"] == 0)       // x mode
+        {
+            if ( ((this.target["dir"] == 1) && (this.inst.x >= this.target["x"])) ||
+                 ((this.target["dir"] == 0) && (this.inst.x <= this.target["x"])) )
+                is_hit_target = true;
+            else
+                this.move(this.target["dir"]);
+        }
+        else if (this.target["m"] == 1)    // distance mode
+        {
+            var x = this.inst.x;
+            var y = this.inst.y;
+            this.target["ds"] += cr.distanceTo(this.target["x"], this.target["y"], x, y);
+            if (this.target["ds"] >= this.target["d"])
+                is_hit_target = true;
+            else
+            {
+                this.move(this.target["dir"]);
+                this.target["x"] = x;
+                this.target["y"] = y;
+            }
+        }
+        if (is_hit_target)
+        {
+            this.isMoving = false;
+            this.isMyCall = true;
+            this.runtime.trigger(cr.behaviors.Rex_Platform_MoveTo.prototype.cnds.OnHitTarget, this.inst);
+            this.isMyCall = false;
+        }
+	};
+	behinstProto.SetTargetPos = function (_x)
+	{
+        this.isMoving = true;
+        this.target["m"] = 0;
+        this.target["dir"] = (_x > this.inst.x)? 1:0;
+        this.target["x"] = _x;
+        this.target["y"] = 0;
+        this.target["d"] = 0;
+        this.target["ds"] = 0;
+	};
+ 	behinstProto.SetTargetPosByDistance = function (distance, dir)
+	{
+	    this.isMoving = true;
+        this.target["m"] = 1;
+        this.target["dir"] = dir;
+        this.target["x"] = this.inst.x;
+        this.target["y"] = this.inst.y;
+        this.target["d"] = distance;
+        this.target["ds"] = 0;
+	};
+    function clone(obj)
+	{
+        if (null == obj || "object" != typeof obj)
+		    return obj;
+        var result = obj.constructor();
+        for (var attr in obj)
+		{
+            if (obj.hasOwnProperty(attr))
+			    result[attr] = obj[attr];
+        }
+        return result;
+    };
+	behinstProto.saveToJSON = function ()
+	{
+		return { "en": this.activated,
+		         "im": this.isMoving,
+		         "t": clone(this.target),
+               };
+	};
+	behinstProto.loadFromJSON = function (o)
+	{
+		this.activated = o["en"];
+		this.isMoving = o["im"];
+		this.target = o["t"];
+	};
+	function Cnds() {};
+	behaviorProto.cnds = new Cnds();
+	Cnds.prototype.OnHitTarget = function ()
+	{
+		return (this.isMyCall);
+	};
+	Cnds.prototype.IsMoving = function ()
+	{
+		return (this.activated && this.isMoving);
+	};
+	function Acts() {};
+	behaviorProto.acts = new Acts();
+	Acts.prototype.SetActivated = function (s)
+	{
+		this.activated = (s == 1);
+	};
+	Acts.prototype.SetTargetPosX = function (_x)
+	{
+        this.SetTargetPos(_x)
+	};
+ 	Acts.prototype.SetTargetPosOnObject = function (objtype)
+	{
+		if (!objtype)
+			return;
+		var inst = objtype.getFirstPicked();
+        if (inst != null)
+            this.SetTargetPos(inst.x);
+	};
+	Acts.prototype.SetTargetPosByDeltaX = function (_x)
+	{
+        this.SetTargetPos(this.inst.x + _x)
+	};
+ 	Acts.prototype.SetTargetPosByDistance = function (distance, dir)
+	{
+        this.SetTargetPosByDistance(distance, dir);
+	};
+ 	Acts.prototype.Stop = function ()
+	{
+        this.isMoving = false;
+	};
+	function Exps() {};
+	behaviorProto.exps = new Exps();
+	Exps.prototype.Activated = function (ret)
+	{
+		ret.set_int((this.activated)? 1:0);
+	};
+	Exps.prototype.TargetX = function (ret)
+	{
+        var x = (this.isMoving)? this.target["x"]:0;
+		ret.set_float(x);
+	};
+}());
+;
+;
 cr.behaviors.Sin = function(runtime)
 {
 	this.runtime = runtime;
@@ -36862,29 +34503,28 @@ cr.behaviors.solid = function(runtime)
 cr.getObjectRefTable = function () { return [
 	cr.plugins_.AJAX,
 	cr.plugins_.Audio,
-	cr.plugins_.Browser,
 	cr.plugins_.Button,
-	cr.plugins_.c2outrun,
-	cr.plugins_.DialogBox,
-	cr.plugins_.Dictionary,
+	cr.plugins_.Browser,
 	cr.plugins_.gamepad,
+	cr.plugins_.Dictionary,
+	cr.plugins_.DialogBox,
 	cr.plugins_.Keyboard,
-	cr.plugins_.AdvTextBox,
-	cr.plugins_.Mouse,
-	cr.plugins_.SpriteFont,
 	cr.plugins_.LocalStorage,
+	cr.plugins_.AdvTextBox,
+	cr.plugins_.SpriteFont,
+	cr.plugins_.Mouse,
 	cr.plugins_.pix_dialogs,
+	cr.plugins_.Rex_WebstorageExt,
 	cr.plugins_.rex_TouchWrap,
 	cr.plugins_.Rex_Video,
-	cr.plugins_.Rex_WebstorageExt,
 	cr.plugins_.TiledSprite,
-	cr.plugins_.Text,
 	cr.plugins_.Tilemap,
-	cr.plugins_.Touch,
+	cr.plugins_.Sprite,
 	cr.plugins_.Spritefont2,
+	cr.plugins_.Text,
 	cr.plugins_.TiledBg,
 	cr.plugins_.video,
-	cr.plugins_.Sprite,
+	cr.plugins_.Touch,
 	cr.behaviors.Platform,
 	cr.behaviors.scrollto,
 	cr.behaviors.solid,
@@ -36897,6 +34537,7 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.EightDir,
 	cr.behaviors.scrollto_plus,
 	cr.behaviors.Pode_Pin,
+	cr.behaviors.Rex_Platform_MoveTo,
 	cr.plugins_.Keyboard.prototype.cnds.OnKey,
 	cr.behaviors.Platform.prototype.acts.FallThrough,
 	cr.plugins_.Keyboard.prototype.cnds.IsKeyDown,
@@ -36907,6 +34548,7 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Sprite.prototype.cnds.CompareY,
 	cr.system_object.prototype.exps.layoutheight,
 	cr.plugins_.Sprite.prototype.acts.SetPosToObject,
+	cr.system_object.prototype.acts.AddVar,
 	cr.system_object.prototype.cnds.OnLayoutStart,
 	cr.plugins_.TiledBg.prototype.acts.SetVisible,
 	cr.plugins_.Sprite.prototype.acts.SetVisible,
@@ -36949,7 +34591,6 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.LOS.prototype.acts.SetRange,
 	cr.plugins_.Sprite.prototype.acts.SetAnimFrame,
 	cr.plugins_.Sprite.prototype.acts.StopAnim,
-	cr.system_object.prototype.acts.AddVar,
 	cr.plugins_.Sprite.prototype.acts.SetX,
 	cr.plugins_.TiledBg.prototype.acts.Destroy,
 	cr.plugins_.Sprite.prototype.cnds.OnCreated,
@@ -36960,6 +34601,23 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Audio.prototype.acts.Stop,
 	cr.system_object.prototype.acts.SaveState,
 	cr.system_object.prototype.exps.distance,
+	cr.plugins_.Sprite.prototype.acts.SetPos,
+	cr.plugins_.Sprite.prototype.cnds.IsOverlapping,
+	cr.system_object.prototype.exps.left,
+	cr.system_object.prototype.exps.len,
+	cr.plugins_.Text.prototype.acts.Destroy,
+	cr.behaviors.Rex_Platform_MoveTo.prototype.acts.SetTargetPosX,
+	cr.plugins_.Sprite.prototype.cnds.IsOnScreen,
+	cr.plugins_.Audio.prototype.acts.SetVolume,
+	cr.behaviors.Rex_MoveTo.prototype.acts.SetTargetPos,
+	cr.plugins_.Text.prototype.acts.SetVisible,
+	cr.plugins_.Text.prototype.acts.SetFontColor,
+	cr.system_object.prototype.exps.rgb,
+	cr.plugins_.Text.prototype.acts.SetOpacity,
+	cr.plugins_.Text.prototype.cnds.OnDestroyed,
+	cr.plugins_.Sprite.prototype.acts.SetCollisions,
+	cr.system_object.prototype.acts.SetLayerOpacity,
+	cr.plugins_.Sprite.prototype.acts.SetOpacity,
 	cr.plugins_.Spritefont2.prototype.acts.SetEffectEnabled,
 	cr.plugins_.Mouse.prototype.cnds.IsOverObject,
 	cr.plugins_.Mouse.prototype.cnds.OnObjectClicked,
@@ -36967,7 +34625,6 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.acts.LoadState,
 	cr.plugins_.Audio.prototype.acts.Preload,
 	cr.plugins_.Audio.prototype.acts.PlayByName,
-	cr.plugins_.Sprite.prototype.acts.SetOpacity,
 	cr.plugins_.Sprite.prototype.exps.Opacity,
 	cr.system_object.prototype.exps.projectversion,
 	cr.plugins_.Audio.prototype.cnds.IsSilent,
@@ -36975,16 +34632,12 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Keyboard.prototype.cnds.OnKeyReleased,
 	cr.plugins_.rex_TouchWrap.prototype.cnds.OnTouchReleasedObject,
 	cr.behaviors.scrollto_plus.prototype.acts.SetEnabled,
-	cr.plugins_.Sprite.prototype.acts.SetPos,
 	cr.behaviors.EightDir.prototype.acts.SetIgnoreInput,
 	cr.plugins_.Spritefont2.prototype.acts.SetPos,
 	cr.plugins_.Sprite.prototype.acts.SetScale,
 	cr.system_object.prototype.exps.clamp,
 	cr.system_object.prototype.exps.max,
-	cr.system_object.prototype.acts.GoToLayoutByName,
 	cr.plugins_.Sprite.prototype.acts.MoveToLayer,
-	cr.system_object.prototype.exps.left,
-	cr.system_object.prototype.exps.len,
-	cr.plugins_.Text.prototype.acts.Destroy
+	cr.system_object.prototype.acts.GoToLayoutByName
 ];};
 
