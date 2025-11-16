@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1763238231,
+	"version": 1763324717,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -127,6 +127,12 @@
 		"images/special_thunder-sheet1.png",
 		"images/tela_branca_especial-sheet0.png",
 		"images/special_trigger-sheet0.png",
+		"images/joy_mobile_borda-sheet0.png",
+		"images/joy_botao_meio-sheet0.png",
+		"images/joy_btn_pular-sheet0.png",
+		"images/joy_btn_attack_01-sheet0.png",
+		"images/joy_btn_attack_02-sheet0.png",
+		"images/joy_btn_attack_03-sheet0.png",
 		"media/attack_espada.ogg",
 		"media/dano_em_metal.ogg",
 		"media/dano_base_humano.ogg",
