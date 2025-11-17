@@ -40426,6 +40426,11 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.sliderbar.prototype.acts.SetPos,
 	cr.plugins_.sliderbar.prototype.exps.Value,
 	cr.plugins_.Audio.prototype.acts.SetMasterVolume,
+	cr.plugins_.LocalStorage.prototype.acts.GetItem,
+	cr.plugins_.LocalStorage.prototype.acts.SetItem,
+	cr.plugins_.LocalStorage.prototype.cnds.OnItemGet,
+	cr.plugins_.sliderbar.prototype.acts.SetValue,
+	cr.plugins_.LocalStorage.prototype.exps.ItemValue,
 	cr.behaviors.EightDir.prototype.acts.SimulateControl,
 	cr.plugins_.Keyboard.prototype.cnds.OnKeyReleased,
 	cr.plugins_.rex_TouchWrap.prototype.cnds.OnTouchReleasedObject,
@@ -40438,7 +40443,6 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.exps.left,
 	cr.system_object.prototype.exps.len,
 	cr.system_object.prototype.acts.GoToLayoutByName,
-	cr.plugins_.LocalStorage.prototype.acts.GetItem,
 	cr.system_object.prototype.cnds.IsMobile,
 	cr.plugins_.rex_TouchWrap.prototype.acts.SetEnable,
 	cr.behaviors.Platform.prototype.cnds.IsFalling,
@@ -40457,10 +40461,6 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.exps.min,
 	cr.plugins_.rex_TouchWrap.prototype.cnds.OnTouchEnd,
 	cr.behaviors.Platform.prototype.cnds.OnJump,
-	cr.system_object.prototype.acts.ScrollToObject,
-	cr.plugins_.LocalStorage.prototype.acts.SetItem,
-	cr.plugins_.LocalStorage.prototype.cnds.OnItemGet,
-	cr.plugins_.sliderbar.prototype.acts.SetValue,
-	cr.plugins_.LocalStorage.prototype.exps.ItemValue
+	cr.system_object.prototype.acts.ScrollToObject
 ];};
 
