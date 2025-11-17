@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1763332865,
+	"version": 1763386695,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -142,6 +142,10 @@
 		"media/dash_player.ogg",
 		"media/teams_chamada.ogg",
 		"media/teams_notificacao.ogg",
+		"media/attack_03.ogg",
+		"media/attack_02.ogg",
+		"media/attack_03_final.ogg",
+		"media/pulo.ogg",
 		"media/apartamento.ogg",
 		"media/tela_inicial.ogg",
 		"icon-16.png",
