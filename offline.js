@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1763387765,
+	"version": 1763408608,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -133,6 +133,13 @@
 		"images/joy_btn_attack_01-sheet0.png",
 		"images/joy_btn_attack_02-sheet0.png",
 		"images/joy_btn_attack_03-sheet0.png",
+		"images/ui_player_vida_red-sheet0.png",
+		"images/ui_player_vida_grey-sheet0.png",
+		"images/ui_player_mana_grey-sheet0.png",
+		"images/ui_player_mana_blue-sheet0.png",
+		"images/menu_bg-sheet0.png",
+		"images/ui_btn_pausa-sheet0.png",
+		"images/ui_btn_menu_voltar-sheet0.png",
 		"media/attack_espada.ogg",
 		"media/dano_em_metal.ogg",
 		"media/dano_base_humano.ogg",
@@ -153,6 +160,18 @@
 		"icon-114.png",
 		"icon-128.png",
 		"icon-256.png",
-		"loading-logo.png"
+		"loading-logo.png",
+		"jquery.mobile.flatui.css",
+		"Flat-UI-Icons-24.ttf",
+		"Flat-UI-Icons-24.woff",
+		"lato-black.ttf",
+		"lato-black.woff",
+		"lato-bold.ttf",
+		"lato-bold.woff",
+		"lato-italic.ttf",
+		"lato-italic.woff",
+		"lato-regular.ttf",
+		"lato-regular.woff",
+		"ajax-loader.gif"
 	]
 }
