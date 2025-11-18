@@ -40450,8 +40450,6 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.Bullet.prototype.acts.SetAngleOfMotion,
 	cr.plugins_.Sprite.prototype.cnds.CompareOpacity,
 	cr.behaviors.Physics.prototype.acts.SetEnabled,
-	cr.behaviors.Rex_MoveTo.prototype.cnds.IsMoving,
-	cr.behaviors.Rex_Platform_MoveTo.prototype.acts.SetTargetPosByDistance,
 	cr.plugins_.rex_TouchWrap.prototype.cnds.IsInTouch,
 	cr.plugins_.Sprite.prototype.acts.SetAngle,
 	cr.system_object.prototype.exps.angle,
@@ -40462,6 +40460,15 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.exps.min,
 	cr.plugins_.rex_TouchWrap.prototype.cnds.OnTouchEnd,
 	cr.behaviors.Platform.prototype.cnds.OnJump,
-	cr.system_object.prototype.acts.ScrollToObject
+	cr.system_object.prototype.acts.ScrollToObject,
+	cr.behaviors.Pode_Pin.prototype.acts.Pin,
+	cr.behaviors.Rex_MoveTo.prototype.cnds.IsMoving,
+	cr.system_object.prototype.exps.abs,
+	cr.plugins_.Text.prototype.acts.MoveToLayer,
+	cr.plugins_.Text.prototype.acts.SetOpacity,
+	cr.behaviors.Rex_MoveTo.prototype.cnds.OnHitTarget,
+	cr.plugins_.Sprite.prototype.acts.SetEffectParam,
+	cr.plugins_.Sprite.prototype.cnds.IsMirrored,
+	cr.behaviors.Rex_Platform_MoveTo.prototype.acts.SetTargetPosByDistance
 ];};
 

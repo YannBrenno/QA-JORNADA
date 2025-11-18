@@ -1,5 +1,5 @@
 ﻿{
-	"version": 1763413852,
+	"version": 1763432357,
 	"fileList": [
 		"data.js",
 		"c2runtime.js",
@@ -55,6 +55,7 @@
 		"images/spritefont.png",
 		"images/btn_iniciar.png",
 		"images/continue-sheet0.png",
+		"images/continue-sheet1.png",
 		"images/ui_vida_bg-sheet0.png",
 		"images/respawn_anim-sheet0.png",
 		"images/respawn_anim-sheet1.png",
@@ -140,6 +141,8 @@
 		"images/menu_bg-sheet0.png",
 		"images/ui_btn_pausa-sheet0.png",
 		"images/ui_btn_menu_voltar-sheet0.png",
+		"images/balao_fala-sheet0.png",
+		"images/chapeu_arrow_01-sheet0.png",
 		"media/attack_espada.ogg",
 		"media/dano_em_metal.ogg",
 		"media/dano_base_humano.ogg",
